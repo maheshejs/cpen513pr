@@ -9,4 +9,8 @@ public class Constants{
     static final double RADIUS  = 4;
     static final int SIZE       = 19;
     static final Color[] COLORS = {Color.GREEN, Color.RED, Color.DARKMAGENTA, Color.ORANGE};
+    enum Algo {
+        LEE_MOORE,
+        A_STAR,
+    }
 }

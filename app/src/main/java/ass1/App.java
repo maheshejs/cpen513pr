@@ -25,15 +25,17 @@ public class App extends Application{
     private Queue<INode> open = new PriorityQueue<>(comparator);
     private Set<INode> closed = new HashSet<>();
     private Field field = new Field(); 
-    private Set<Point2D> allPoints = Field.allPoints;
+    private Set<Point2D> allPoints  = Field.allPoints;
     private Set<Point2D> forbPoints = Field.forbPoints;
     private INode startNode = new INode();
-    private INode endNode = new INode();
+    private INode endNode   = new INode();
+
     @Override
     public void start(Stage stage){
+        Algo algo = Algo.LEE_MOORE;
         VBox vBox = new VBox();
         Button btn = new Button("Find path");
-        btn.setOnAction(e -> findPath());
+        btn.setOnAction(e -> findPath(algo));
         vBox.setSpacing(10);
         vBox.setPadding(new Insets(25, 25, 25, 25));
         vBox.getChildren().addAll(field, btn);
@@ -45,7 +47,8 @@ public class App extends Application{
     public static void main(String[] args) {
         Application.launch(args);
     }
-    public void findPath(){
+
+    public void findPath(Algo algo){
         startNode = Field.startNode;
         endNode = Field.endNode;
         startNode.setCost(startNode.distance(endNode));
@@ -76,7 +79,7 @@ public class App extends Application{
                 break; //success
             }
             closed.add(leafNode);
-            List<INode> childrenNodes = findNeighborNodes(leafNode);
+            List<INode> childrenNodes = findNeighborNodes(leafNode, algo);
             for(INode childNode : childrenNodes){
                 if(!(closed.contains(childNode) || open.contains(childNode))){
                     open.offer(childNode);
@@ -94,7 +97,7 @@ public class App extends Application{
         }
     }
 
-    public List<INode> findNeighborNodes(INode iNode){ 
+    public List<INode> findNeighborNodes(INode iNode, Algo algo){ 
         List<INode> neighborNodes = new ArrayList<>();
         for(int i = 0; i < 2; i++){
             for(int j = 0; j < 2; j++){
@@ -108,7 +111,9 @@ public class App extends Application{
                     double parentCost = neighborNode.getParent().getCost();
                     double heurCost = neighborNode.distance(endNode);
                     double stepCost = neighborNode.distance(neighborNode.getParent());
-                    double cost = parentCost + heurCost + stepCost;
+                    double cost = parentCost + stepCost;
+                    if (algo == Algo.A_STAR)
+                        cost +=  heurCost;
 
                     neighborNode.setCost(cost);
                     neighborNodes.add(neighborNode);
