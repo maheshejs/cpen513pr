@@ -7,7 +7,6 @@ import java.util.Queue;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Comparator;
 
 import javafx.application.Application;
@@ -25,24 +24,22 @@ public class App extends Application{
     private Queue<INode> open = new PriorityQueue<>(comparator);
     private Set<INode> closed = new HashSet<>();
     private Set<INode> route  = new HashSet<>();
-    private Field field = new Field(); 
-    private Set<Point2D> allPoints  = Field.allPoints;
-    private Set<Point2D> forbPoints = Field.forbPoints;
-    private LinkedList<INode> terminalNodes = Field.terminalNodes;
+    private Grid grid = new Grid("wavy.infile"); 
+    private LinkedList<Point2D> terminalCells = grid.getNetworks().get(0);
 
     @Override
     public void start(Stage stage){
         Algo algo = Algo.A_STAR;
-        Button button = new Button("Find path");
+        Button button = new Button("Route");
         VBox vBox = new VBox();
         Scene scene = new Scene(vBox);
 
         button.setOnAction(e -> findPath(algo));
         vBox.setSpacing(10);
         vBox.setPadding(new Insets(25, 25, 25, 25));
-        vBox.getChildren().addAll(field, button);
+        vBox.getChildren().addAll(grid, button);
         stage.setScene(scene);
-        stage.setTitle("Shortest path");
+        stage.setTitle("Routing");
         stage.show();
     }
     public static void main(String[] args) {
@@ -50,14 +47,14 @@ public class App extends Application{
     }
 
     public void findPath(Algo algo){
-        // Copy terminal nodes to redraw them later
-        List<INode> nodes = new LinkedList<>();
-        for (INode iNode : terminalNodes)
-            nodes.add(iNode);
+        // Copy terminal cells to redraw them later
+        LinkedList<Point2D> copyTerminalCells = new LinkedList<>();
+        for (Point2D cell : terminalCells)
+            copyTerminalCells.add(cell);
 
-        route.add(terminalNodes.remove());
-        while (!terminalNodes.isEmpty()) {
-            INode terminalNode = terminalNodes.remove();
+        route.add(new INode(terminalCells.remove()));
+        while (!terminalCells.isEmpty()) {
+            INode terminalNode = new INode(terminalCells.remove());
 
             for (INode iNode : route) {
                 iNode.setParent(null);
@@ -107,18 +104,20 @@ public class App extends Application{
 
         // Draw route
         for(INode iNode : route){
-            Rectangle rect = new Rectangle(iNode.getX(), iNode.getY(), WIDTH, HEIGHT);
+            Rectangle rect = new Rectangle(iNode.getX() * CELL_WIDTH, iNode.getY() * CELL_HEIGHT,
+                                                CELL_WIDTH, CELL_HEIGHT);
             rect.setStroke(Color.BLUE);
             rect.setFill(Color.PURPLE);
-            field.getChildren().add(rect);
+            grid.getChildren().add(rect);
         }
 
-        // Redraw terminal nodes
-        for(INode iNode : nodes){
-            Rectangle rect = new Rectangle(iNode.getX(), iNode.getY(), WIDTH, HEIGHT);
+        // Redraw terminal cells
+        for(Point2D cell : copyTerminalCells){
+            Rectangle rect = new Rectangle(cell.getX() * CELL_WIDTH, cell.getY() * CELL_HEIGHT,
+                                                CELL_WIDTH, CELL_HEIGHT);
             rect.setStroke(Color.BLUE);
             rect.setFill(Color.RED);
-            field.getChildren().add(rect);
+            grid.getChildren().add(rect);
         }
     }
 
@@ -126,11 +125,11 @@ public class App extends Application{
         List<INode> neighborNodes = new LinkedList<>();
         for (int i = 0; i < 2; ++i) {
             for (int j = 0; j < 2; ++j) {
-                double x = iNode.getX() + (2 * j - 1) *    i    * WIDTH;
-                double y = iNode.getY() + (2 * j - 1) * (1 - i) * HEIGHT;
+                double x = iNode.getX() + (2 * j - 1) *    i    ;
+                double y = iNode.getY() + (2 * j - 1) * (1 - i) ;
                 Point2D point = new Point2D(x, y);
 
-                if(allPoints.contains(point) && !(forbPoints.contains(point))){
+                if(grid.getCells().contains(point) && !(grid.getObstructedCells().contains(point))){
                     INode neighborNode = new INode(point);
                     neighborNode.setParent(iNode);
                     double parentCost = neighborNode.getParent().getCost();
