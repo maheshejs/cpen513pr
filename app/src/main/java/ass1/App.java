@@ -1,14 +1,14 @@
 package ass1;
 import static ass1.Constants.*;
 
-import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.PriorityQueue;
+import java.util.LinkedList;
 import java.util.Queue;
+import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Comparator;
 
 import javafx.application.Application;
 import javafx.geometry.Insets;
@@ -24,22 +24,23 @@ public class App extends Application{
     private Comparator<INode> comparator = Comparator.comparing(INode::getCost, Comparator.naturalOrder());
     private Queue<INode> open = new PriorityQueue<>(comparator);
     private Set<INode> closed = new HashSet<>();
+    private Set<INode> route  = new HashSet<>();
     private Field field = new Field(); 
     private Set<Point2D> allPoints  = Field.allPoints;
     private Set<Point2D> forbPoints = Field.forbPoints;
-    private INode startNode = new INode();
-    private INode endNode   = new INode();
+    private LinkedList<INode> terminalNodes = Field.terminalNodes;
 
     @Override
     public void start(Stage stage){
-        Algo algo = Algo.LEE_MOORE;
+        Algo algo = Algo.A_STAR;
+        Button button = new Button("Find path");
         VBox vBox = new VBox();
-        Button btn = new Button("Find path");
-        btn.setOnAction(e -> findPath(algo));
+        Scene scene = new Scene(vBox);
+
+        button.setOnAction(e -> findPath(algo));
         vBox.setSpacing(10);
         vBox.setPadding(new Insets(25, 25, 25, 25));
-        vBox.getChildren().addAll(field, btn);
-        Scene scene = new Scene(vBox);
+        vBox.getChildren().addAll(field, button);
         stage.setScene(scene);
         stage.setTitle("Shortest path");
         stage.show();
@@ -49,58 +50,82 @@ public class App extends Application{
     }
 
     public void findPath(Algo algo){
-        startNode = Field.startNode;
-        endNode = Field.endNode;
-        startNode.setCost(startNode.distance(endNode));
-        open.offer(startNode);
-        while(true){
-            if(open.isEmpty()){
-                System.out.println("No path found");
-                break; //failure
+        // Copy terminal nodes to redraw them later
+        List<INode> nodes = new LinkedList<>();
+        for (INode iNode : terminalNodes)
+            nodes.add(iNode);
+
+        route.add(terminalNodes.remove());
+        while (!terminalNodes.isEmpty()) {
+            INode terminalNode = terminalNodes.remove();
+
+            for (INode iNode : route) {
+                iNode.setParent(null);
+                iNode.setCost(iNode.distance(terminalNode));
+                open.add(iNode);
             }
-            INode leafNode = open.poll();
-                    
-            if(leafNode.equals(endNode)){
-                List<Point2D> parcours = new ArrayList<>();
-                INode parentLeafNode = leafNode.getParent();
-                while(parentLeafNode != null){
-                    if(parentLeafNode.getParent() != null)
-                        parcours.add(parentLeafNode);
-                    parentLeafNode = parentLeafNode.getParent();
-                }
-                for(Point2D point : parcours){
-                    // Solution
-                    Rectangle rect = new Rectangle(point.getX(), point.getY(), WIDTH, HEIGHT);
-                    rect.setStroke(Color.BLUE);
-                    rect.setFill(Color.PURPLE);
-                    field.getChildren().add(rect);
+
+            closed.clear();
+
+            while (true) {
+                if (open.isEmpty()) {
+                    route.add(terminalNode);
+                    break; // failure
                 }
 
-                break; //success
-            }
-            closed.add(leafNode);
-            List<INode> childrenNodes = findNeighborNodes(leafNode, algo);
-            for(INode childNode : childrenNodes){
-                if(!(closed.contains(childNode) || open.contains(childNode))){
-                    open.offer(childNode);
+                INode leafNode = open.remove();
+
+                if (leafNode.equals(terminalNode)) {
+                    INode iNode = leafNode;
+                    while (iNode != null) {
+                        if (iNode.getParent() != null)
+                            route.add(iNode);
+                        iNode = iNode.getParent();
+                    }
+                    break; //success
                 }
-                else if (open.contains(childNode)){
-                    for(INode iterNode : open){
-                        if(iterNode.equals(childNode) && iterNode.getCost()>childNode.getCost()){
-                            open.remove(iterNode);
-                            open.offer(childNode);
-                            break;
+
+                closed.add(leafNode);
+                List<INode> childNodes = findNeighborNodes(leafNode, terminalNode, algo);
+                
+                for (INode childNode : childNodes) {
+                    if (!(closed.contains(childNode) || open.contains(childNode))) {
+                        open.add(childNode);
+                    }
+                    else if (open.contains(childNode)) {
+                        for (INode iNode : open) {
+                            if (iNode.equals(childNode) && iNode.getCost() > childNode.getCost()) {
+                                open.remove(iNode);
+                                open.add(childNode);
+                                break;
+                            }
                         }
                     }
                 }
             }
         }
+
+        // Draw route
+        for(INode iNode : route){
+            Rectangle rect = new Rectangle(iNode.getX(), iNode.getY(), WIDTH, HEIGHT);
+            rect.setStroke(Color.BLUE);
+            rect.setFill(Color.PURPLE);
+            field.getChildren().add(rect);
+        }
+
+        // Redraw terminal nodes
+        for(INode iNode : nodes){
+            Rectangle rect = new Rectangle(iNode.getX(), iNode.getY(), WIDTH, HEIGHT);
+            rect.setStroke(Color.BLUE);
+            rect.setFill(Color.RED);
+            field.getChildren().add(rect);
+        }
     }
 
-    public List<INode> findNeighborNodes(INode iNode, Algo algo){ 
-        List<INode> neighborNodes = new ArrayList<>();
-        for(int i = 0; i < 2; i++){
-            for(int j = 0; j < 2; j++){
+    public List<INode> findNeighborNodes(INode iNode, INode terminalNode, Algo algo){ 
+        List<INode> neighborNodes = new LinkedList<>();
+        for (int i = 0; i < 2; ++i) {
+            for (int j = 0; j < 2; ++j) {
                 double x = iNode.getX() + (2 * j - 1) *    i    * WIDTH;
                 double y = iNode.getY() + (2 * j - 1) * (1 - i) * HEIGHT;
                 Point2D point = new Point2D(x, y);
@@ -109,7 +134,7 @@ public class App extends Application{
                     INode neighborNode = new INode(point);
                     neighborNode.setParent(iNode);
                     double parentCost = neighborNode.getParent().getCost();
-                    double heurCost = neighborNode.distance(endNode);
+                    double heurCost = neighborNode.distance(terminalNode);
                     double stepCost = neighborNode.distance(neighborNode.getParent());
                     double cost = parentCost + stepCost;
                     if (algo == Algo.A_STAR)
