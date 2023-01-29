@@ -194,7 +194,7 @@ public class Grid extends Group{
     }
     
     /**
-     * @return a list of wires in the grid
+     * @return a list of wires in the grid, each wire consists of its terminal cells
      */
     public LinkedList<LinkedList<Point2D>> getWires() {
         return wires;

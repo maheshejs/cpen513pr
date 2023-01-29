@@ -67,6 +67,10 @@ public class App extends Application{
         Application.launch(args);
     }
 
+
+    /** Route all wires
+     * 
+     */
     public void routeAllWires() {
         int iter = 0;
         do {
@@ -99,10 +103,15 @@ public class App extends Application{
         System.out.printf("ITERATIONS : %d\n", iter);
     }
 
+    /** Route all terminal cells of a wire
+     * @param wireID the wire ID
+     * @param terminalCells the terminal cells of the wire
+     * @return the route of the wire
+     */
     public Set<INode> routeWire(int wireID, LinkedList<Point2D> terminalCells) {
         Set<INode> route  = new HashSet<>();
-        Queue<INode> open = new PriorityQueue<>(iNodeComparator);
-        Set<INode> closed = new HashSet<>();
+        Queue<INode> frontier = new PriorityQueue<>(iNodeComparator);
+        Set<INode> explored = new HashSet<>();
                 
         route.add(new INode(terminalCells.remove()));
 
@@ -115,20 +124,22 @@ public class App extends Application{
                     iNode.setCost(normalizeDistance(iNode.distance(terminalNode)));
                 else
                     iNode.setCost(0);
-                open.add(iNode);
+                frontier.add(iNode);
             }
 
-            closed.clear();
+            explored.clear();
 
             while (true) {
-                if (open.isEmpty()) {
+                // Failure
+                if (frontier.isEmpty()) {
                     route.add(terminalNode);
-                    break; // Failure 
+                    break; 
                 }
 
-                INode leafNode = open.remove();
+                INode leafNode = frontier.remove();
+                // Success 
                 if (leafNode.equals(terminalNode)) {
-                    // Success - Backtrack to construct route
+                    // Backtrack to construct route
                     INode iNode = leafNode;
                     while (iNode != null) {
                         if (iNode.getParent() != null)
@@ -138,18 +149,21 @@ public class App extends Application{
                     break;
                 }
 
-                closed.add(leafNode);
+                explored.add(leafNode);
+
                 List<INode> childNodes = findNeighborNodes(leafNode, terminalNode, terminalCells);
                 
                 for (INode childNode : childNodes) {
-                    if (!closed.contains(childNode) && !open.contains(childNode)) {
-                        open.add(childNode);
+                    // If childNode is not in frontier or explored, add it to frontier
+                    if (!explored.contains(childNode) && !frontier.contains(childNode)) {
+                        frontier.add(childNode);
                     }
-                    else if (open.contains(childNode)) {
-                        for (INode iNode : open) {
+                    else if (frontier.contains(childNode)) {
+                        for (INode iNode : frontier) {
+                            // If childNode is already in frontier, update cost if it is less than the cost of iNode
                             if (iNode.equals(childNode) && iNode.getCost() > childNode.getCost()) {
-                                open.remove(iNode);
-                                open.add(childNode);
+                                frontier.remove(iNode);
+                                frontier.add(childNode);
                                 break;
                             }
                         }
@@ -160,6 +174,10 @@ public class App extends Application{
         return route;
     }
 
+    /** Draws the route on the grid
+     * @param route the route to be drawn
+     * @param wireID the wire ID
+     */
     public void drawRoute (Set<INode> route, int wireID) {
         for(INode iNode : route) {
             String gBoxID = "#" + Grid.GBox.createID(iNode.getX(), iNode.getY());
@@ -167,10 +185,20 @@ public class App extends Application{
         }
     }
 
+    /** Normalizes distance according to the grid size
+     * @param distance the distance to be normalized
+     * @return normalized distance
+     */
     public double normalizeDistance(double distance) {
         return distance / Math.hypot(grid.getWidth(), grid.getHeight());
     }
 
+    /** Finds the neighbor nodes of the current node
+     * @param currentNode the current node 
+     * @param terminalNode the current terminal node
+     * @param terminalCells the remaining terminal cells (nodes)
+     * @return the list of neighbor nodes
+     */
     public List<INode> findNeighborNodes(INode currentNode, INode terminalNode, LinkedList<Point2D> terminalCells) { 
         List<INode> neighborNodes = new LinkedList<>();
         for (int i = 0; i < DIRECTIONS.length; ++i) {
@@ -181,7 +209,7 @@ public class App extends Application{
                 INode neighborNode = new INode(cell);
                 neighborNode.setParent(currentNode);
                 double parentCost = neighborNode.getParent().getCost();
-                                    /*  k * hn * pn */
+                                    /* Negotiation congestion cost :  k * hn * pn */
                 double stepCost = CONGESTION_WEIGHT * congestion.getHistory(neighborNode) * 
                                     (1 + congestion.getPresent(neighborNode)); 
                 double cost = parentCost + stepCost;
