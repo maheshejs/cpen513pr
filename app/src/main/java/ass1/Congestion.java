@@ -31,7 +31,6 @@ public class Congestion {
             if (present > 1)
             {
                 hasCongestions = true;
-                // Update congestion history each iteration
                 history += present - 1; 
                 congestionMap.put(cell, ((history << numWires) | present));
             }
