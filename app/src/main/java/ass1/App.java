@@ -3,12 +3,16 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.Queue;
+import java.util.ArrayDeque;
 import java.util.PriorityQueue;
 
 import static ass1.Constants.*;
 import javafx.application.Application;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
@@ -22,13 +26,15 @@ import javafx.stage.Stage;
 
 public class App extends Application{
     private Algo algo = Algo.A_STAR;
-    private Grid grid = new Grid("misty.infile"); 
+    private Grid grid = new Grid("oswald.infile"); 
     private int numWires = grid.getWires().size();
     private Congestion congestion = new Congestion(grid.getSharedCells(), numWires);
+    private int frame = 0;
     private Comparator<INode> iNodeComparator = Comparator.comparing(INode::getCost, Comparator.naturalOrder());
 
     @Override
     public void start(Stage stage){
+        Timeline timeline = new Timeline();
         String algos[] = {"A*", "Lee-Moore"};
         ChoiceBox algoBox = new ChoiceBox(FXCollections.observableArrayList(algos));
         algoBox.setValue("A*");
@@ -42,7 +48,10 @@ public class App extends Application{
         Label benchmarkLabel = new Label("Benchmark : ");
 
         Button button = new Button("Route");
-        button.setOnAction(e -> routeAllWires());
+        button.setOnAction(e -> {
+                                routeAllWires(timeline);
+                                 timeline.play();
+                                });
 
         GridPane pane = new GridPane();
         pane.setConstraints(algoLabel, 0, 1);
@@ -67,10 +76,10 @@ public class App extends Application{
     }
 
 
-    /** Route all wires
-     * 
+    /** Routes all wires
+     * @param timeline the timeline to schedule drawing of cells
      */
-    public void routeAllWires() {
+    public void routeAllWires(Timeline timeline) {
         // When Negotiated Congestion algorithm fails after NUM_ITERATIONS iterations
         //  we switch to a greedy algorithm with congestion history
         boolean isGreedy = false;
@@ -79,14 +88,14 @@ public class App extends Application{
 
         for (iteration = 1; iteration <= NUM_ITERATIONS + 1; ++iteration) {
             // Redraw grid
-            grid.redrawGrid();
+            grid.redrawGrid(timeline, getFrameDuration(frame));
             
             // Clear present congestions, but keep congestion history 
             congestion.clear();
 
             for (int wireID = 0; wireID < numWires; ++wireID) {
-                LinkedList<Point2D> terminalCells = grid.getWires().get(wireID);
-                Set<INode> route = routeWire(wireID, new LinkedList<>(terminalCells));
+                List<Point2D> terminalCells = grid.getWires().get(wireID);
+                List<INode> route = routeWire(wireID, new ArrayDeque<>(terminalCells));
 
                 // Remove terminal cells in route so that route consists of only shared resources (cells)
                 route.removeAll(terminalCells);
@@ -99,7 +108,7 @@ public class App extends Application{
                 congestion.updatePresent(route, wireID);
                 
                 // Draw route
-                drawRoute(route, wireID);
+                drawRoute(route, wireID, timeline);
             }
 
             // Update congestion history after each iteration and update hasCongestions
@@ -112,17 +121,17 @@ public class App extends Application{
                 System.out.println(iteration);
                 isGreedy = true;
             }
-        System.out.printf("ITERATIONS : %d\n", iteration);
         } 
+        System.out.printf("ITERATIONS : %d\n", iteration);
     }
 
-    /** Route all terminal cells of a wire
+    /** Routes all terminal cells of a wire
      * @param wireID the wire ID
      * @param terminalCells the terminal cells of the wire
      * @return the route of the wire
      */
-    public Set<INode> routeWire(int wireID, LinkedList<Point2D> terminalCells) {
-        Set<INode> route  = new HashSet<>();
+    public List<INode> routeWire(int wireID, Queue<Point2D> terminalCells) {
+        List<INode> route  = new ArrayList<>();
         Queue<INode> frontier = new PriorityQueue<>(iNodeComparator);
         Set<INode> explored = new HashSet<>();
                 
@@ -188,13 +197,18 @@ public class App extends Application{
     }
 
     /** Draws the route on the grid
+     * Also, schedules drawing of each node (cell) of the route in a timeline
      * @param route the route to be drawn
      * @param wireID the wire ID
+     * @param timeline the timeline
      */
-    public void drawRoute (Set<INode> route, int wireID) {
+    public void drawRoute (List<INode> route, int wireID, Timeline timeline) {
         for(INode iNode : route) {
-            String gBoxID = "#" + Grid.GBox.createID(iNode.getX(), iNode.getY());
-            grid.lookup(gBoxID).setStyle(grid.getCellStyles().get("route" + wireID));
+            ++frame;
+            KeyFrame keyFrame = new KeyFrame(getFrameDuration(frame), e -> { 
+                String gBoxID = "#" + Grid.GBox.createID(iNode.getX(), iNode.getY());
+                grid.lookup(gBoxID).setStyle(grid.getCellStyles().get("route" + wireID));});
+            timeline.getKeyFrames().add(keyFrame);
         }
     }
 
@@ -206,14 +220,22 @@ public class App extends Application{
         return distance / Math.hypot(grid.getWidth(), grid.getHeight());
     }
 
+    /** Return duration of a frame
+     * @param frame the frame
+     * @return the duration
+     */
+    public Duration getFrameDuration(int frame) {
+        return Duration.millis(FRAME_FACTOR * frame);
+    }
+
     /** Finds the neighbor nodes of the current node
      * @param currentNode the current node 
      * @param terminalNode the current terminal node
      * @param terminalCells the remaining terminal cells (nodes)
      * @return the list of neighbor nodes
      */
-    public List<INode> findNeighborNodes(INode currentNode, INode terminalNode, LinkedList<Point2D> terminalCells) { 
-        List<INode> neighborNodes = new LinkedList<>();
+    public List<INode> findNeighborNodes(INode currentNode, INode terminalNode, Queue<Point2D> terminalCells) { 
+        List<INode> neighborNodes = new ArrayList<>();
         for (int i = 0; i < DIRECTIONS.length; ++i) {
             Point2D cell = new Point2D (currentNode.getX() + DIRECTIONS[i][0],
                                         currentNode.getY() + DIRECTIONS[i][1]);
@@ -223,7 +245,7 @@ public class App extends Application{
                 neighborNode.setParent(currentNode);
                 double parentCost = neighborNode.getParent().getCost();
                                     /* Negotiation congestion cost :  k * hn * pn */
-                double stepCost = CONGESTION_WEIGHT * congestion.getHistory(neighborNode) * 
+                double stepCost = CONGESTION_FACTOR * congestion.getHistory(neighborNode) * 
                                     (1 + congestion.getPresent(neighborNode)); 
                 double cost = parentCost + stepCost;
                 if (algo == Algo.A_STAR)

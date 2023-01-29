@@ -1,4 +1,5 @@
 package ass1;
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
@@ -61,7 +62,7 @@ public class Congestion {
      * @param route the route
      * @param wireID the wire ID 
     */
-    public void updatePresent(Set<INode> route, int wireID) {
+    public void updatePresent(List<INode> route, int wireID) {
         for(Point2D cell : route)
             congestionMap.put(cell, congestionMap.get(cell) | (1 << wireID));
     }

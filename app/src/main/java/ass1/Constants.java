@@ -1,7 +1,8 @@
 package ass1;
 public class Constants{
     private Constants () {}
-    static final double CONGESTION_WEIGHT = 8;
+    static final int FRAME_FACTOR = 100;
+    static final double CONGESTION_FACTOR = 8;
     static final int NUM_ITERATIONS = 500;
     static final String[] TERMINAL_COLORS = {   "red", "yellow", "green", 
                                                 "orange", "purple", "sienna",

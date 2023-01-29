@@ -2,13 +2,18 @@ package ass1;
 
 import static ass1.Constants.*;
 import java.util.Scanner;
-import java.util.LinkedList;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.io.File;
 import java.io.FileNotFoundException;
+
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 import javafx.geometry.Point2D;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Group;
@@ -25,7 +30,7 @@ public class Grid extends Group{
     private Set<Point2D> allCells;
     private Set<Point2D> obstructedCells;
     private Set<Point2D> sharedCells;
-    private LinkedList<LinkedList<Point2D>> wires;
+    private List<List<Point2D>> wires;
     private Map<String, String> cellStyles = new HashMap<>();
 
     Grid(String benchmarkFile) {
@@ -38,7 +43,7 @@ public class Grid extends Group{
         allCells = new HashSet<>();
         obstructedCells = new HashSet<>();
         sharedCells = new HashSet<>();
-        wires = new LinkedList<>();
+        wires = new ArrayList<>();
         cellStyles = new HashMap<>();
 
         parseBenchmark(benchmarkFile);
@@ -70,7 +75,7 @@ public class Grid extends Group{
             
             for (int i = 0; i < numWires; ++i) {
                 int numTerminalCells = scanner.nextInt();
-                LinkedList<Point2D> terminalCells = new LinkedList<>();
+                List<Point2D> terminalCells = new ArrayList<>();
                 for (int j = 0; j < numTerminalCells; ++j) {
                     int x = scanner.nextInt();
                     int y = scanner.nextInt();
@@ -102,7 +107,7 @@ public class Grid extends Group{
     private void setSharedCells() {
         sharedCells.addAll(allCells);
         sharedCells.removeAll(obstructedCells);
-        for (LinkedList<Point2D> terminalCells : wires)
+        for (List<Point2D> terminalCells : wires)
             sharedCells.removeAll(terminalCells);
     }
 
@@ -127,7 +132,7 @@ public class Grid extends Group{
      *  when negotiated congestion algorithm and we switch to a greedy algorithm
      * @param cells to be added
      */
-    public void updateCells(Set<INode> route) {
+    public void updateCells(List<INode> route) {
         obstructedCells.addAll(route);
         sharedCells.removeAll(route);
     }
@@ -153,7 +158,7 @@ public class Grid extends Group{
             }
             else {
                 for (int wireID = 0; wireID < numWires; ++wireID) {
-                    LinkedList<Point2D> terminalCells = wires.get(wireID);
+                    List<Point2D> terminalCells = wires.get(wireID);
                     if (terminalCells.contains(cell)) {
                         gBox.setStyle(cellStyles.get("terminal" + wireID));
                         break;
@@ -164,14 +169,21 @@ public class Grid extends Group{
         }
     }
 
-    /**
-     * Redraws grid by redrawing shared cells
-    */
-    public void redrawGrid() {
+
+
+    /** Redraws grid by redrawing shared cells
+     *  Also, schedules redrawing in a timeline for time duration
+     * @param timeline the timeline
+     * @param duration the duration
+     */
+    public void redrawGrid(Timeline timeline, Duration duration) {
         for (Point2D cell : sharedCells)
         {
+            KeyFrame keyFrame = new KeyFrame(duration, e -> { 
             String gBoxID = "#" + GBox.createID(cell.getX(), cell.getY());
             this.lookup(gBoxID).setStyle(cellStyles.get("shared"));
+            });
+            timeline.getKeyFrames().add(keyFrame);
         }
     }
 
@@ -213,7 +225,7 @@ public class Grid extends Group{
     /**
      * @return a list of wires in the grid, each wire consists of its terminal cells
      */
-    public LinkedList<LinkedList<Point2D>> getWires() {
+    public List<List<Point2D>> getWires() {
         return wires;
     }
     
