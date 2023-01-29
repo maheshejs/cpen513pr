@@ -10,10 +10,12 @@ import java.util.HashSet;
 import java.io.File;
 import java.io.FileNotFoundException;
 import javafx.geometry.Point2D;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Group;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.shape.Rectangle;
+import javafx.stage.Screen;
 
 public class Grid extends Group{
     private int width;
@@ -116,17 +118,32 @@ public class Grid extends Group{
         for (int i = 0; i < TERMINAL_COLORS.length; ++i) {
             cellStyles.put("route"    + i, "-fx-fill: " + TERMINAL_COLORS[i] + "; " + "-fx-stroke: blue");
             cellStyles.put("terminal" + i, "-fx-fill: " + TERMINAL_COLORS[i] + "; " +
-                                "-fx-stroke: black; -fx-stroke-width: 5; -fx-stroke-type: inside; " +
+                                "-fx-stroke: black; -fx-stroke-width: 3; -fx-stroke-type: inside; " +
                                 "-fx-stroke-line-join: round; -fx-stroke-line-cap: round;");
         }
+    }
+
+    /** Add route nodes (cells) to obstructed cells and remove them from shared cells
+     *  when negotiated congestion algorithm and we switch to a greedy algorithm
+     * @param cells to be added
+     */
+    public void updateCells(Set<INode> route) {
+        obstructedCells.addAll(route);
+        sharedCells.removeAll(route);
     }
 
     /**
      * Draws grid with obstructed, shared and terminal cells
     */
     public void drawGrid() {
+        // Get screen size
+        Rectangle2D primaryScreenBounds = Screen.getPrimary().getVisualBounds();
+        double cellWidth = primaryScreenBounds.getWidth() / width;
+        double cellHeight = primaryScreenBounds.getHeight() / height;
+        double cellSize = 0.95 * Math.min(cellWidth, cellHeight);
+        
         for (Point2D cell : allCells) {
-            GBox gBox = new GBox(cell.getX(), cell.getY());
+            GBox gBox = new GBox(cell.getX(), cell.getY(), cellSize);
             if (obstructedCells.contains(cell)) {
                 gBox.setStyle(cellStyles.get("obstructed"));
             }
@@ -208,8 +225,8 @@ public class Grid extends Group{
     }
 
     public class GBox extends Rectangle {
-        private GBox(double x, double y) {
-            super(x * CELL_WIDTH, y * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
+        private GBox(double x, double y, double cellSize) {
+            super(x * cellSize, y * cellSize, cellSize, cellSize);
             this.setId(createID(x, y));
             this.setOnMouseClicked(e -> action (e));
         }

@@ -26,7 +26,6 @@ public class App extends Application{
     private int numWires = grid.getWires().size();
     private Congestion congestion = new Congestion(grid.getSharedCells(), numWires);
     private Comparator<INode> iNodeComparator = Comparator.comparing(INode::getCost, Comparator.naturalOrder());
-    private final int NUM_ITERATIONS = 500;
 
     @Override
     public void start(Stage stage){
@@ -72,10 +71,13 @@ public class App extends Application{
      * 
      */
     public void routeAllWires() {
-        int iter = 0;
-        do {
-            iter++;
+        // When Negotiated Congestion algorithm fails after NUM_ITERATIONS iterations
+        //  we switch to a greedy algorithm with congestion history
+        boolean isGreedy = false;
 
+        int iteration;
+
+        for (iteration = 1; iteration <= NUM_ITERATIONS + 1; ++iteration) {
             // Redraw grid
             grid.redrawGrid();
             
@@ -89,6 +91,10 @@ public class App extends Application{
                 // Remove terminal cells in route so that route consists of only shared resources (cells)
                 route.removeAll(terminalCells);
 
+                // Add route to obstructed cells and remove it from shared cells
+                if (isGreedy)
+                    grid.updateCells(route);
+
                 // Update present congestions after routing each wire
                 congestion.updatePresent(route, wireID);
                 
@@ -99,8 +105,15 @@ public class App extends Application{
             // Update congestion history after each iteration and update hasCongestions
             congestion.updateHistory();
 
-        } while (congestion.hasCongestions());
-        System.out.printf("ITERATIONS : %d\n", iter);
+            if (!congestion.hasCongestions())
+                break;
+            else if (iteration == NUM_ITERATIONS - 1)
+            {
+                System.out.println(iteration);
+                isGreedy = true;
+            }
+        System.out.printf("ITERATIONS : %d\n", iteration);
+        } 
     }
 
     /** Route all terminal cells of a wire
