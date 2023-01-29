@@ -1,12 +1,11 @@
 package ass1;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.PriorityQueue;
-import java.util.Queue;
 import java.util.Set;
+import java.util.HashSet;
+import java.util.List;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.PriorityQueue;
 
 import static ass1.Constants.*;
 import javafx.application.Application;
@@ -23,10 +22,9 @@ import javafx.stage.Stage;
 
 public class App extends Application{
     private Algo algo = Algo.A_STAR;
-    private Grid grid = new Grid("oswald.infile"); 
+    private Grid grid = new Grid("misty.infile"); 
     private int numWires = grid.getWires().size();
     private Congestion congestion = new Congestion(grid.getSharedCells(), numWires);
-    private HashMap<Point2D, Integer> congestionMap = new HashMap<>();
     private Comparator<INode> iNodeComparator = Comparator.comparing(INode::getCost, Comparator.naturalOrder());
     private final int NUM_ITERATIONS = 500;
 
@@ -141,10 +139,10 @@ public class App extends Application{
                 }
 
                 closed.add(leafNode);
-                List<INode> childNodes = findNeighborNodes(leafNode, terminalNode, wireID);
+                List<INode> childNodes = findNeighborNodes(leafNode, terminalNode, terminalCells);
                 
                 for (INode childNode : childNodes) {
-                    if (!(closed.contains(childNode) || open.contains(childNode))) {
+                    if (!closed.contains(childNode) && !open.contains(childNode)) {
                         open.add(childNode);
                     }
                     else if (open.contains(childNode)) {
@@ -173,39 +171,27 @@ public class App extends Application{
         return distance / Math.hypot(grid.getWidth(), grid.getHeight());
     }
 
-    public List<INode> findNeighborNodes(INode iNode, INode terminalNode, int wireID){ 
+    public List<INode> findNeighborNodes(INode currentNode, INode terminalNode, LinkedList<Point2D> terminalCells) { 
         List<INode> neighborNodes = new LinkedList<>();
-        for (int i = 0; i < 2; ++i) {
-            for (int j = 0; j < 2; ++j) {
-                double x = iNode.getX() + (2 * j - 1) *    i    ;
-                double y = iNode.getY() + (2 * j - 1) * (1 - i) ;
-                Point2D cell = new Point2D(x, y);
-                
-                boolean isValidCell = true;
-                for (int w = 0; w < grid.getWires().size(); ++w) {
-                    if (w != wireID && grid.getWires().get(w).contains(cell)){
-                        isValidCell = false;
-                        break;
-                    }
+        for (int i = 0; i < DIRECTIONS.length; ++i) {
+            Point2D cell = new Point2D (currentNode.getX() + DIRECTIONS[i][0],
+                                        currentNode.getY() + DIRECTIONS[i][1]);
+            
+            if(grid.getSharedCells().contains(cell) || terminalCells.contains(cell) || terminalNode.equals(cell) ) {
+                INode neighborNode = new INode(cell);
+                neighborNode.setParent(currentNode);
+                double parentCost = neighborNode.getParent().getCost();
+                                    /*  k * hn * pn */
+                double stepCost = CONGESTION_WEIGHT * congestion.getHistory(neighborNode) * 
+                                    (1 + congestion.getPresent(neighborNode)); 
+                double cost = parentCost + stepCost;
+                if (algo == Algo.A_STAR)
+                {
+                    double heurCost = normalizeDistance(neighborNode.distance(terminalNode));
+                    cost += heurCost;
                 }
-
-                if(isValidCell && grid.getAllCells().contains(cell) && !(grid.getObstructedCells().contains(cell))) {
-                    INode neighborNode = new INode(cell);
-                    
-                    neighborNode.setParent(iNode);
-                    double parentCost = neighborNode.getParent().getCost();
-                    double stepCost = 8 * congestion.getHistory(neighborNode) * 
-                                            (1 + congestion.getPresent(neighborNode)); // hn * pn
-                    double cost = parentCost + stepCost;
-                    if (algo == Algo.A_STAR)
-                    {
-                        double heurCost = normalizeDistance(neighborNode.distance(terminalNode));
-                        cost += heurCost;
-                    }
-                    
-                    neighborNode.setCost(cost);
-                    neighborNodes.add(neighborNode);
-                }
+                neighborNode.setCost(cost);
+                neighborNodes.add(neighborNode);
             }
         }
         return neighborNodes;

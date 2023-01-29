@@ -76,7 +76,6 @@ public class Grid extends Group{
                 }
                 wires.add(terminalCells);
             }
-
             scanner.close();
         }
         catch (FileNotFoundException e)
