@@ -8,7 +8,7 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 
-import ass1.Constants.Algo;
+import static ass1.Constants.*;
 import javafx.application.Application;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -22,12 +22,13 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 public class App extends Application{
-    private Grid grid = new Grid("oswald.infile"); 
     private Algo algo = Algo.A_STAR;
-    private HashMap<Point2D, Integer> shared = new HashMap<>();
-    private final int NUM_ITERATIONS = 500;
-    private final int numWires = grid.getWires().size();
+    private Grid grid = new Grid("oswald.infile"); 
+    private int numWires = grid.getWires().size();
+    private Congestion congestion = new Congestion(grid.getSharedCells(), numWires);
+    private HashMap<Point2D, Integer> congestionMap = new HashMap<>();
     private Comparator<INode> iNodeComparator = Comparator.comparing(INode::getCost, Comparator.naturalOrder());
+    private final int NUM_ITERATIONS = 500;
 
     @Override
     public void start(Stage stage){
@@ -69,82 +70,38 @@ public class App extends Application{
     }
 
     public void routeAllWires() {
-        for (Point2D cell : grid.getSharedCells()) 
-            shared.put(cell, (1 << numWires));
-
         int iter = 0;
-        boolean isGreedy = false;
-        //for (int i = 0; i < NUM_ITERATIONS; ++i) {
-        boolean retry;
         do {
             iter++;
-            retry = false;
 
-            shared.replaceAll((key, value) -> ((value >> numWires) << numWires));
+            // Redraw grid
+            grid.redrawGrid();
+            
+            // Clear present congestions, but keep congestion history 
+            congestion.clear();
 
-            for (int wire = 0; wire < numWires; ++wire) {
+            for (int wireID = 0; wireID < numWires; ++wireID) {
+                LinkedList<Point2D> terminalCells = grid.getWires().get(wireID);
+                Set<INode> route = routeWire(wireID, new LinkedList<>(terminalCells));
+
+                // Remove terminal cells in route so that route consists of only shared resources (cells)
+                route.removeAll(terminalCells);
+
+                // Update present congestions after routing each wire
+                congestion.updatePresent(route, wireID);
                 
-                //LinkedList<Point2D> terminalCells = new LinkedList<>();
-                //for (Point2D cell : grid.getWires().get(wire))
-                //    terminalCells.add(cell);
-                LinkedList<Point2D> terminalCells = grid.getWires().get(wire);
-                
-                // Copy terminal cells to redraw them later
-                //LinkedList<Point2D> copyTerminalCells = new LinkedList<>();
-                //for (Point2D cell : terminalCells)
-                //    copyTerminalCells.add(cell);
-
-                Set<INode> route = routeWire(new LinkedList<>(terminalCells), wire);
-
                 // Draw route
-                for(INode iNode : route){
-                    if (shared.containsKey(iNode))
-                        shared.put(iNode, shared.get(iNode) | (1 << wire));
-                    /*
-                    if (i == NUM_ITERATIONS - 1) {
-                    Rectangle rect = new Rectangle(iNode.getX() * CELL_WIDTH, iNode.getY() * CELL_HEIGHT,
-                                                        CELL_WIDTH, CELL_HEIGHT);
-                    rect.setStroke(Color.BLUE);
-                    rect.setFill(COLORS[wire]);
-                    grid.getChildren().add(rect);
-                    }
-                    */
-                }
-                
-                /*
-                // Redraw terminal cells
-                for(Point2D cell : terminalCells) {
-                    Rectangle rect = new Rectangle(cell.getX() * CELL_WIDTH, cell.getY() * CELL_HEIGHT,
-                                                        CELL_WIDTH, CELL_HEIGHT);
-                    rect.setStroke(Color.BLACK);
-                    rect.setStrokeWidth(5.0);
-                    rect.setStrokeType(StrokeType.INSIDE);
-                    rect.setStrokeLineJoin(StrokeLineJoin.ROUND);
-                    rect.setStrokeLineCap(StrokeLineCap.ROUND);
-                    rect.setFill(COLORS[wire]);
-                    grid.getChildren().addAll(rect);
-                }
-                */
+                drawRoute(route, wireID);
             }
 
-            for (Point2D cell : shared.keySet()) {
-                int usage = shared.get(cell);
-                int usagePresent = (usage & ((1 << numWires) - 1));
-                int usagePresentAmount = Integer.bitCount(usagePresent);
-                if (usagePresentAmount > 1)
-                {
-                    retry = true;
-                    int usageHistory = (usage >> numWires);
-                    usageHistory += (usagePresentAmount - 1); 
-                    shared.put(cell, ((usageHistory << numWires) | usagePresent));
-                }
-            }
-        } while (retry);
+            // Update congestion history after each iteration and update hasCongestions
+            congestion.updateHistory();
 
+        } while (congestion.hasCongestions());
         System.out.printf("ITERATIONS : %d\n", iter);
     }
 
-    public Set<INode> routeWire(LinkedList<Point2D> terminalCells, int wireID) {
+    public Set<INode> routeWire(int wireID, LinkedList<Point2D> terminalCells) {
         Set<INode> route  = new HashSet<>();
         Queue<INode> open = new PriorityQueue<>(iNodeComparator);
         Set<INode> closed = new HashSet<>();
@@ -205,11 +162,18 @@ public class App extends Application{
         return route;
     }
 
-    public double normalizeDistance(double distance){
-        return distance/Math.hypot(grid.getWidth(), grid.getHeight());
+    public void drawRoute (Set<INode> route, int wireID) {
+        for(INode iNode : route) {
+            String gBoxID = "#" + Grid.GBox.createID(iNode.getX(), iNode.getY());
+            grid.lookup(gBoxID).setStyle(grid.getCellStyles().get("route" + wireID));
+        }
     }
 
-    public List<INode> findNeighborNodes(INode iNode, INode terminalNode, int wire){ 
+    public double normalizeDistance(double distance) {
+        return distance / Math.hypot(grid.getWidth(), grid.getHeight());
+    }
+
+    public List<INode> findNeighborNodes(INode iNode, INode terminalNode, int wireID){ 
         List<INode> neighborNodes = new LinkedList<>();
         for (int i = 0; i < 2; ++i) {
             for (int j = 0; j < 2; ++j) {
@@ -219,7 +183,7 @@ public class App extends Application{
                 
                 boolean isValidCell = true;
                 for (int w = 0; w < grid.getWires().size(); ++w) {
-                    if (w != wire && grid.getWires().get(w).contains(cell)){
+                    if (w != wireID && grid.getWires().get(w).contains(cell)){
                         isValidCell = false;
                         break;
                     }
@@ -228,23 +192,15 @@ public class App extends Application{
                 if(isValidCell && grid.getAllCells().contains(cell) && !(grid.getObstructedCells().contains(cell))) {
                     INode neighborNode = new INode(cell);
                     
-                    int neighborUsagePresent = 0;
-                    int neighborUsageHistory = 0;
-                    if (shared.containsKey(neighborNode))
-                    {
-                        int neighborUsage = shared.get(neighborNode);
-                        neighborUsageHistory = neighborUsage >> numWires;
-                        neighborUsagePresent = Integer.bitCount(neighborUsage & ((1 << numWires) - 1) & (~(1 << wire)));
-                    }
-                    
                     neighborNode.setParent(iNode);
                     double parentCost = neighborNode.getParent().getCost();
-                    double stepCost = 8 * neighborUsageHistory * (1 + neighborUsagePresent); // hn * pn
+                    double stepCost = 8 * congestion.getHistory(neighborNode) * 
+                                            (1 + congestion.getPresent(neighborNode)); // hn * pn
                     double cost = parentCost + stepCost;
                     if (algo == Algo.A_STAR)
                     {
                         double heurCost = normalizeDistance(neighborNode.distance(terminalNode));
-                        cost +=  heurCost;
+                        cost += heurCost;
                     }
                     
                     neighborNode.setCost(cost);

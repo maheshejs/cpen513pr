@@ -111,8 +111,11 @@ public class Grid extends Group{
     private void setCellStyles() {
         // Add the style for obstructed cells
         cellStyles.put("obstructed", "-fx-fill: blue; -fx-stroke: black");
+        // Add the style for shared cells
+        cellStyles.put("shared", "-fx-fill: white; -fx-stroke: black");
         // Add the styles for terminal cells
         for (int i = 0; i < TERMINAL_COLORS.length; ++i) {
+            cellStyles.put("route"    + i, "-fx-fill: " + TERMINAL_COLORS[i] + "; " + "-fx-stroke: blue");
             cellStyles.put("terminal" + i, "-fx-fill: " + TERMINAL_COLORS[i] + "; " +
                                 "-fx-stroke: black; -fx-stroke-width: 5; -fx-stroke-type: inside; " +
                                 "-fx-stroke-line-join: round; -fx-stroke-line-cap: round;");
@@ -120,14 +123,19 @@ public class Grid extends Group{
     }
 
     /**
-     * Draws grid with obstructed cells and terminal cells
+     * Draws grid with obstructed, shared and terminal cells
     */
     public void drawGrid() {
         for (Point2D cell : allCells) {
             GBox gBox = new GBox(cell.getX(), cell.getY());
             if (obstructedCells.contains(cell)) {
                 gBox.setStyle(cellStyles.get("obstructed"));
-            } else {
+            }
+            else if (sharedCells.contains(cell))
+            {
+                gBox.setStyle(cellStyles.get("shared"));
+            }
+            else {
                 for (int wireID = 0; wireID < numWires; ++wireID) {
                     LinkedList<Point2D> terminalCells = wires.get(wireID);
                     if (terminalCells.contains(cell)) {
@@ -137,6 +145,17 @@ public class Grid extends Group{
                 }
             }
             this.getChildren().add(gBox);
+        }
+    }
+
+    /**
+     * Redraws grid by redrawing shared cells
+    */
+    public void redrawGrid() {
+        for (Point2D cell : sharedCells)
+        {
+            String gBoxID = "#" + GBox.createID(cell.getX(), cell.getY());
+            this.lookup(gBoxID).setStyle(cellStyles.get("shared"));
         }
     }
 
@@ -181,10 +200,18 @@ public class Grid extends Group{
     public LinkedList<LinkedList<Point2D>> getWires() {
         return wires;
     }
-    private class GBox extends Rectangle {
+    
+    /**
+     * @return cell styles used to display the grid.
+     */
+    public Map<String, String> getCellStyles() {
+        return cellStyles;
+    }
+
+    public class GBox extends Rectangle {
         private GBox(double x, double y) {
             super(x * CELL_WIDTH, y * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
-            this.setStyle("-fx-fill: white; -fx-stroke: black");
+            this.setId(createID(x, y));
             this.setOnMouseClicked(e -> action (e));
         }
         
@@ -193,8 +220,12 @@ public class Grid extends Group{
             Point2D point = new Point2D(this.getX(), this.getY());
             if(e.getButton().equals(MouseButton.PRIMARY)){
                 Grid.this.obstructedCells.add(point);
-                this.setStyle("-fx-fill: blue; -fx-stroke: black");
+                this.setStyle(cellStyles.get("obstructed"));
             }
+        }
+
+        public static String createID(double x, double y) {
+            return String.format("gBox|%dx%d", (int)x, (int)y);
         }
     }
 }
