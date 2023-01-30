@@ -20,7 +20,7 @@ import javafx.stage.Stage;
 public class App extends Application{
     ///////////////////////////////////////////////////////////////////////////////////////
     private Algo algo = Algo.A_STAR; // or Algo.LEE_MOORE
-    private Grid grid = new Grid("oswald.infile"); // Default benchmark file
+    private Grid grid = new Grid("stdcell.infile"); // Default benchmark file
     ///////////////////////////////////////////////////////////////////////////////////////
     private Congestion congestion = new Congestion(grid.getSharedCells(), grid.getWires().size());
 

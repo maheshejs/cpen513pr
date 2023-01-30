@@ -177,11 +177,11 @@ public class Grid extends Group{
     public void redraw() {
         for (Point2D cell : sharedCells)
         {
-            KeyFrame keyFrame = new KeyFrame(getFrameDuration(frame), e -> { 
+            //KeyFrame keyFrame = new KeyFrame(getFrameDuration(frame), e -> { 
                 String gBoxID = "#" + GBox.createID(cell.getX(), cell.getY());
                 this.lookup(gBoxID).setStyle(cellStyles.get("shared"));
-            });
-            timeline.getKeyFrames().add(keyFrame);
+            //});
+            //timeline.getKeyFrames().add(keyFrame);
         }
     }
 
@@ -192,11 +192,11 @@ public class Grid extends Group{
      */
     public void drawRoute (List<INode> route, int wireID) {
         for(INode iNode : route) {
-            KeyFrame keyFrame = new KeyFrame(getFrameDuration(++frame), e -> { 
+            //KeyFrame keyFrame = new KeyFrame(getFrameDuration(++frame), e -> { 
                 String gBoxID = "#" + GBox.createID(iNode.getX(), iNode.getY());
                 this.lookup(gBoxID).setStyle(cellStyles.get("route" + wireID));
-            });
-            timeline.getKeyFrames().add(keyFrame);
+            //});
+            //timeline.getKeyFrames().add(keyFrame);
         }
     }
 
@@ -209,11 +209,11 @@ public class Grid extends Group{
         if (sharedCells.contains(exploredNode))
         {
             ++frame;
-            KeyFrame keyFrame = new KeyFrame(getFrameDuration(frame), e -> { 
+            //KeyFrame keyFrame = new KeyFrame(getFrameDuration(frame), e -> { 
                 String gBoxID = "#" + GBox.createID(exploredNode.getX(), exploredNode.getY());
                 this.lookup(gBoxID).setStyle(cellStyles.get("explored"));
-            });
-            timeline.getKeyFrames().add(keyFrame);
+            //});
+            //timeline.getKeyFrames().add(keyFrame);
         }
     }
 
