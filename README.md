@@ -1,5 +1,7 @@
 # Routing
 ![Oswald](animation-benchmarks/example_lee_moore.gif)
+<img src="animation-benchmarks/oswald.gif" width="250">
+
 ![](animation-benchmarks/example_a_star.gif)
 ![Sydney](animation-benchmarks/sydney.gif)
 ![Wavy](animation-benchmarks/wavy.gif)
