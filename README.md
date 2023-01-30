@@ -1,4 +1,4 @@
-# Routing Algorithm
+# Routing
 
 This project implements two versions of a Negotiated Congestion Algorithm:
 
