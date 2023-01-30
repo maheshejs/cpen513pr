@@ -27,11 +27,13 @@ public class Grid extends Group{
     private int height; 
     private int numWires;
     private int numObstructedCells;
+    private int frame;
     private Set<Point2D> allCells;
     private Set<Point2D> obstructedCells;
     private Set<Point2D> sharedCells;
     private List<List<Point2D>> wires;
-    private Map<String, String> cellStyles = new HashMap<>();
+    private Map<String, String> cellStyles;
+    private Timeline timeline;
 
     Grid(String benchmarkFile) {
         super();
@@ -40,17 +42,19 @@ public class Grid extends Group{
         height = 0; 
         numObstructedCells = 0;
         numWires = 0;
+        frame = 0;
         allCells = new HashSet<>();
         obstructedCells = new HashSet<>();
         sharedCells = new HashSet<>();
         wires = new ArrayList<>();
         cellStyles = new HashMap<>();
+        timeline = new Timeline();
 
         parseBenchmark(benchmarkFile);
         setAllCells();
         setSharedCells();
         setCellStyles();
-        drawGrid();
+        draw();
     }
 
     /**
@@ -115,11 +119,9 @@ public class Grid extends Group{
      * Sets cell styles used to display the grid.
     */
     private void setCellStyles() {
-        // Add the style for obstructed cells
         cellStyles.put("obstructed", "-fx-fill: blue; -fx-stroke: black");
-        // Add the style for shared cells
         cellStyles.put("shared", "-fx-fill: white; -fx-stroke: black");
-        // Add the styles for terminal cells
+        cellStyles.put("explored", "-fx-fill: fuchsia; -fx-stroke: black");
         for (int i = 0; i < TERMINAL_COLORS.length; ++i) {
             cellStyles.put("route"    + i, "-fx-fill: " + TERMINAL_COLORS[i] + "; " + "-fx-stroke: blue");
             cellStyles.put("terminal" + i, "-fx-fill: " + TERMINAL_COLORS[i] + "; " +
@@ -140,7 +142,7 @@ public class Grid extends Group{
     /**
      * Draws grid with obstructed, shared and terminal cells
     */
-    public void drawGrid() {
+    public void draw() {
         // Get screen size
         Rectangle2D primaryScreenBounds = Screen.getPrimary().getVisualBounds();
         double cellWidth = primaryScreenBounds.getWidth() / width;
@@ -168,23 +170,63 @@ public class Grid extends Group{
             this.getChildren().add(gBox);
         }
     }
-
-
-
-    /** Redraws grid by redrawing shared cells
-     *  Also, schedules redrawing in a timeline for time duration
+    
+    /** Redraws grid and schedules in a timeline 
      * @param timeline the timeline
-     * @param duration the duration
      */
-    public void redrawGrid(Timeline timeline, Duration duration) {
+    public void redraw() {
         for (Point2D cell : sharedCells)
         {
-            KeyFrame keyFrame = new KeyFrame(duration, e -> { 
-            String gBoxID = "#" + GBox.createID(cell.getX(), cell.getY());
-            this.lookup(gBoxID).setStyle(cellStyles.get("shared"));
+            KeyFrame keyFrame = new KeyFrame(getFrameDuration(frame), e -> { 
+                String gBoxID = "#" + GBox.createID(cell.getX(), cell.getY());
+                this.lookup(gBoxID).setStyle(cellStyles.get("shared"));
             });
             timeline.getKeyFrames().add(keyFrame);
         }
+    }
+
+    /** Draws the route on the grid and schedules it in a timeline
+     * @param route the route to be drawn
+     * @param wireID the wire ID
+     * @param timeline the timeline
+     */
+    public void drawRoute (List<INode> route, int wireID) {
+        for(INode iNode : route) {
+            KeyFrame keyFrame = new KeyFrame(getFrameDuration(++frame), e -> { 
+                String gBoxID = "#" + GBox.createID(iNode.getX(), iNode.getY());
+                this.lookup(gBoxID).setStyle(cellStyles.get("route" + wireID));
+            });
+            timeline.getKeyFrames().add(keyFrame);
+        }
+    }
+
+    /** ONLY FOR DEBUGGING PURPOSES
+     * Draws explored node on the grid and schedules it in a timeline
+     * @param exploredNode explored node to be drawn
+     * @param timeline the timeline
+     */
+    public void drawExploredNode(INode exploredNode) {
+        if (sharedCells.contains(exploredNode))
+        {
+            ++frame;
+            KeyFrame keyFrame = new KeyFrame(getFrameDuration(frame), e -> { 
+                String gBoxID = "#" + GBox.createID(exploredNode.getX(), exploredNode.getY());
+                this.lookup(gBoxID).setStyle(cellStyles.get("explored"));
+            });
+            timeline.getKeyFrames().add(keyFrame);
+        }
+    }
+
+    public void animate() {
+        timeline.play();
+    }
+    
+    /** Returns duration of a frame
+     * @param frame the frame
+     * @return the duration
+     */
+    public static Duration getFrameDuration(int frame) {
+        return Duration.millis(FRAME_FACTOR * frame);
     }
 
     /**
@@ -229,13 +271,6 @@ public class Grid extends Group{
         return wires;
     }
     
-    /**
-     * @return cell styles used to display the grid.
-     */
-    public Map<String, String> getCellStyles() {
-        return cellStyles;
-    }
-
     public class GBox extends Rectangle {
         private GBox(double x, double y, double cellSize) {
             super(x * cellSize, y * cellSize, cellSize, cellSize);

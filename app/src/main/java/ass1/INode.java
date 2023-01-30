@@ -29,6 +29,10 @@ public class INode extends Point2D {
         return parent;
     }
 
+    public double manhattanDistance(INode iNode){
+        return Math.abs(this.getX() - iNode.getX()) + Math.abs(this.getY() - iNode.getY());
+    }
+
     @Override
     public String toString(){
         return "INode [x = "+this.getX()+", y = "+this.getY()+"]" + "@Cost:" + Math.round(this.cost);

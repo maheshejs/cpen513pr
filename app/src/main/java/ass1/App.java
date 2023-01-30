@@ -10,92 +10,72 @@ import java.util.PriorityQueue;
 
 import static ass1.Constants.*;
 import javafx.application.Application;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
-import javafx.util.Duration;
-import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.ChoiceBox;
-import javafx.scene.control.Label;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 public class App extends Application{
-    private Algo algo = Algo.A_STAR;
-    private Grid grid = new Grid("oswald.infile"); 
-    private int numWires = grid.getWires().size();
-    private Congestion congestion = new Congestion(grid.getSharedCells(), numWires);
-    private int frame = 0;
-    private Comparator<INode> iNodeComparator = Comparator.comparing(INode::getCost, Comparator.naturalOrder());
+    ///////////////////////////////////////////////////////////////////////////////////////
+    private Algo algo = Algo.A_STAR; // or Algo.LEE_MOORE
+    private Grid grid = new Grid("oswald.infile"); // Default benchmark file
+    ///////////////////////////////////////////////////////////////////////////////////////
+    private Congestion congestion = new Congestion(grid.getSharedCells(), grid.getWires().size());
 
     @Override
     public void start(Stage stage){
-        Timeline timeline = new Timeline();
-        String algos[] = {"A*", "Lee-Moore"};
-        ChoiceBox algoBox = new ChoiceBox(FXCollections.observableArrayList(algos));
-        algoBox.setValue("A*");
-
-        String benchmarks[] = { "impossible", "impossible2", "kuma", "misty", "oswald", 
-                                "rusty", "stanley", "stdcell", "temp", "wavy"};
-        ChoiceBox benchmarkBox = new ChoiceBox(FXCollections.observableArrayList(benchmarks));
-        benchmarkBox.setValue("sydney");
-
-        Label algoLabel = new Label("Algo : ");
-        Label benchmarkLabel = new Label("Benchmark : ");
-
-        Button button = new Button("Route");
+        /////////////////////////////////////////////////////////////////////
+        /////////////////////// GRAPHICS - SETUP START ////////////////////// 
+        /////////////////////////////////////////////////////////////////////
+        Button button = new Button("Route all wires");
         button.setOnAction(e -> {
-                                routeAllWires(timeline);
-                                 timeline.play();
+                                 routeAllWires();
+                                 grid.animate();
                                 });
-
-        GridPane pane = new GridPane();
-        pane.setConstraints(algoLabel, 0, 1);
-        pane.setConstraints(algoBox, 1, 1);
-        pane.setConstraints(benchmarkLabel, 0, 0);
-        pane.setConstraints(benchmarkBox, 1, 0);
-        pane.getChildren().addAll(algoLabel, algoBox, benchmarkLabel, benchmarkBox);
-
         VBox vBox = new VBox();
         vBox.setSpacing(10);
         vBox.setPadding(new Insets(25, 25, 25, 25));
         vBox.getChildren().addAll(grid, button);
-
         Scene scene = new Scene(vBox);
-
         stage.setScene(scene);
         stage.setTitle("Routing");
         stage.show();
+        /////////////////////////////////////////////////////////////////////
+        /////////////////////// GRAPHICS - SETUP END //////////////////////// 
+        /////////////////////////////////////////////////////////////////////
     }
     public static void main(String[] args) {
         Application.launch(args);
     }
 
-
     /** Routes all wires
-     * @param timeline the timeline to schedule drawing of cells
      */
-    public void routeAllWires(Timeline timeline) {
+    public void routeAllWires() {
         // When Negotiated Congestion algorithm fails after NUM_ITERATIONS iterations
         //  we switch to a greedy algorithm with congestion history
         boolean isGreedy = false;
 
-        int iteration;
+        int iteration = 1;
+        int wiresRouted = 0;
 
-        for (iteration = 1; iteration <= NUM_ITERATIONS + 1; ++iteration) {
+        for (; iteration <= NUM_ITERATIONS + 1; ++iteration) {
+            wiresRouted = 0;
+
             // Redraw grid
-            grid.redrawGrid(timeline, getFrameDuration(frame));
+            grid.redraw();
             
             // Clear present congestions, but keep congestion history 
             congestion.clear();
 
-            for (int wireID = 0; wireID < numWires; ++wireID) {
+            for (int wireID = 0; wireID < grid.getWires().size(); ++wireID) {
                 List<Point2D> terminalCells = grid.getWires().get(wireID);
-                List<INode> route = routeWire(wireID, new ArrayDeque<>(terminalCells));
+                RouteInfo routeInfo = routeWire(wireID, new ArrayDeque<>(terminalCells));
+                List<INode> route = routeInfo.getRoute(); 
+
+                if (routeInfo.isRouted())
+                    ++wiresRouted;
 
                 // Remove terminal cells in route so that route consists of only shared resources (cells)
                 route.removeAll(terminalCells);
@@ -108,7 +88,7 @@ public class App extends Application{
                 congestion.updatePresent(route, wireID);
                 
                 // Draw route
-                drawRoute(route, wireID, timeline);
+                grid.drawRoute(route, wireID);
             }
 
             // Update congestion history after each iteration and update hasCongestions
@@ -117,43 +97,41 @@ public class App extends Application{
             if (!congestion.hasCongestions())
                 break;
             else if (iteration == NUM_ITERATIONS - 1)
-            {
-                System.out.println(iteration);
                 isGreedy = true;
-            }
-        } 
-        System.out.printf("ITERATIONS : %d\n", iteration);
+        }
+        System.out.printf("ITERATIONS TAKEN : %d | WIRES SUCCESSFULLY ROUTED : %d/%d \n", 
+                            iteration, wiresRouted, grid.getWires().size());
     }
 
     /** Routes all terminal cells of a wire
      * @param wireID the wire ID
      * @param terminalCells the terminal cells of the wire
-     * @return the route of the wire
+     * @return route info which consits of route and route status, is successfully routed or not
      */
-    public List<INode> routeWire(int wireID, Queue<Point2D> terminalCells) {
+    public RouteInfo routeWire(int wireID, Queue<Point2D> terminalCells) {
         List<INode> route  = new ArrayList<>();
-        Queue<INode> frontier = new PriorityQueue<>(iNodeComparator);
+        Comparator<INode> comparator = Comparator.comparing(INode::getCost, Comparator.naturalOrder());
+        Queue<INode> frontier = new PriorityQueue<>(comparator);
         Set<INode> explored = new HashSet<>();
-                
+        boolean isRouted = true;
         route.add(new INode(terminalCells.remove()));
 
         while (!terminalCells.isEmpty()){
             INode terminalNode = new INode(terminalCells.remove());
-
             for (INode iNode : route) {
                 iNode.setParent(null);
                 if (algo == Algo.A_STAR)
-                    iNode.setCost(normalizeDistance(iNode.distance(terminalNode)));
+                    iNode.setCost(iNode.manhattanDistance(terminalNode));
                 else
                     iNode.setCost(0);
                 frontier.add(iNode);
             }
 
             explored.clear();
-
             while (true) {
                 // Failure
                 if (frontier.isEmpty()) {
+                    isRouted = false;
                     route.add(terminalNode);
                     break; 
                 }
@@ -172,9 +150,11 @@ public class App extends Application{
                 }
 
                 explored.add(leafNode);
-
-                List<INode> childNodes = findNeighborNodes(leafNode, terminalNode, terminalCells);
+                // ONLY FOR DEBUGGING PURPOSES : Draw explored node
+                if (IS_DEBUG)
+                    grid.drawExploredNode(leafNode);
                 
+                List<INode> childNodes = findNeighborNodes(leafNode, terminalNode, terminalCells);
                 for (INode childNode : childNodes) {
                     // If childNode is not in frontier or explored, add it to frontier
                     if (!explored.contains(childNode) && !frontier.contains(childNode)) {
@@ -193,39 +173,7 @@ public class App extends Application{
                 }
             }
         }
-        return route;
-    }
-
-    /** Draws the route on the grid
-     * Also, schedules drawing of each node (cell) of the route in a timeline
-     * @param route the route to be drawn
-     * @param wireID the wire ID
-     * @param timeline the timeline
-     */
-    public void drawRoute (List<INode> route, int wireID, Timeline timeline) {
-        for(INode iNode : route) {
-            ++frame;
-            KeyFrame keyFrame = new KeyFrame(getFrameDuration(frame), e -> { 
-                String gBoxID = "#" + Grid.GBox.createID(iNode.getX(), iNode.getY());
-                grid.lookup(gBoxID).setStyle(grid.getCellStyles().get("route" + wireID));});
-            timeline.getKeyFrames().add(keyFrame);
-        }
-    }
-
-    /** Normalizes distance according to the grid size
-     * @param distance the distance to be normalized
-     * @return normalized distance
-     */
-    public double normalizeDistance(double distance) {
-        return distance / Math.hypot(grid.getWidth(), grid.getHeight());
-    }
-
-    /** Return duration of a frame
-     * @param frame the frame
-     * @return the duration
-     */
-    public Duration getFrameDuration(int frame) {
-        return Duration.millis(FRAME_FACTOR * frame);
+        return new RouteInfo(route, isRouted);
     }
 
     /** Finds the neighbor nodes of the current node
@@ -250,7 +198,7 @@ public class App extends Application{
                 double cost = parentCost + stepCost;
                 if (algo == Algo.A_STAR)
                 {
-                    double heurCost = normalizeDistance(neighborNode.distance(terminalNode));
+                    double heurCost = neighborNode.manhattanDistance(terminalNode);
                     cost += heurCost;
                 }
                 neighborNode.setCost(cost);
@@ -259,4 +207,4 @@ public class App extends Application{
         }
         return neighborNodes;
     }
-}
+} 
