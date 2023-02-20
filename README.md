@@ -37,7 +37,7 @@ The source code files for the project are located at :
 
 ## Graphics
 
-The project includes benchmark graphics in the `graphics/` folder.
+The project includes benchmark graphics in the `graphics/ass1` folder.
 
 ## Authors
 

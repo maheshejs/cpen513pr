@@ -1,7 +1,11 @@
 # Ignore Gradle project-specific cache directory
 .gradle
 app/bin
-app/build
+#app/build
+#!app/build/
+
+#app/build/*
+#!app/build/benchmarks/
 
 # Ignore Gradle build output directory
 build

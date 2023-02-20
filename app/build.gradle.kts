@@ -7,7 +7,6 @@ javafx {
     version = "19"
     modules("javafx.controls")
 }
-    //modules("javafx.application", "javafx.geometry", "javafx.stage", "javafx.scene")
 
 
 repositories {
@@ -20,7 +19,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("ass1.App")
+    mainClass.set("ass2.App")
 }
 
 tasks.named<Test>("test") {
