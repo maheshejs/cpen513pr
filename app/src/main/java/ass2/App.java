@@ -16,8 +16,14 @@ import javafx.geometry.Point2D;
 public class App {
     private static final Random random = new Random(); 
     public static void main (String[] args) {
+        // Check command line arguments
+        if (args.length != 2) {
+            System.out.println("Usage: args=\"<benchmarkFile> <useRowSpacing>\"");
+            System.exit(1);
+        }
+
         // Set benchmark
-        Benchmark    benchmark   = new Benchmark("apex4.txt", false);
+        Benchmark    benchmark   = new Benchmark(args[0], Boolean.parseBoolean(args[1]));
         Block[]      blocks      = benchmark.getBlocks();
         Connection[] connections = benchmark.getConnections();
         Point2D[]    locs        = benchmark.getLocs();

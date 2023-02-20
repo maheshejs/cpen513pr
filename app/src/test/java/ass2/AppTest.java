@@ -2,6 +2,7 @@
 package ass2;
 
 import java.util.List;
+import java.util.Random;
 
 import javafx.geometry.Point2D;
 import javafx.util.Pair;
@@ -23,6 +24,8 @@ class AppTest {
     Connection[] connections = benchmark.getConnections();
     Point2D[]    locs        = benchmark.getLocs();
     int[]        solution    = new int[locs.length];
+    // Define random as null to ensure that the random number generator is not used
+    private static final Random random = null; 
 
     @Test void testBlock () {
         assertEquals(benchmark.getNumBlocks(), 3);
@@ -59,7 +62,7 @@ class AppTest {
         int[][] solutions = new int[NUM_TESTS][locs.length];
 
         // Set initial solution to [0, 1, 2, 3]
-        App.initializeBlockPlacements(solution, blocks, connections, locs, null);
+        App.initializeBlockPlacements(solution, blocks, connections, locs, random);
         
         for (int i = 0; i < NUM_TESTS; ++i) {
             int firstLocIndex  = 2 - (i & 1); // 2 or 1
@@ -110,11 +113,11 @@ class AppTest {
     
     @Test void testNeighbor () {
         // Set initial solution to [0, 1, 2, 3]
-        App.initializeBlockPlacements(solution, blocks, connections, locs, null);
+        App.initializeBlockPlacements(solution, blocks, connections, locs, random);
         // Change solution to [0, 3, 2, 1]
         App.swapBlockPlacements(solution, blocks, connections, locs, 1, 3);
         // Generate a neighbor by swapping locs 0 and 1
-        Neighbor neighbor = new Neighbor(solution, blocks, connections, locs, null);
+        Neighbor neighbor = new Neighbor(solution, blocks, connections, locs, random);
         
         assertArrayEquals(solution, new int[] {0, 3, 2, 1});
         assertEquals(neighbor.getFirstLocIndex(), 0);

@@ -1,11 +1,8 @@
-# Routing
+# Placement
 
-This project implements two versions of a Negotiated Congestion Algorithm:
-
-- The first version implements the Lee-Moore Shortest Path Routing Algorithm
-- The second version implements an A* algorithm
-
-The program reads in placement and netlist information and outputs the routing, the number of cells visited (labelled) for each net, and an indication of whether the routing was successful.
+This project implements a simulated-annealing based placement tool that targets standard cells.
+The optimization goal is to minimize the half-perimeter of the smallest bounding box containing all blocks for
+each connection, summed over all connections.
 
 ## Getting Started
 
@@ -21,7 +18,13 @@ These instructions will get you a copy of the project up and running on your loc
 ```shell
 git clone https://github.com/maheshejs/cpen513pr.git
 cd cpen513pr
-./gradlew run
+./gradlew run --args="<benchmarkFile> <useRowSpacing>"
+```
+
+### Testing
+
+```shell
+./gradlew clean test
 ```
 
 ## Source Code
@@ -32,12 +35,11 @@ The source code files for the project are located at :
       └── src
           └── main
               └── java
-                  └── ass1
+                  └── ass2
+          └── test
+              └── java
+                  └── ass2
 ```
-
-## Graphics
-
-The project includes benchmark graphics in the `graphics/ass1` folder.
 
 ## Authors
 

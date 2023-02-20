@@ -63,7 +63,7 @@ public class Grid extends Group{
      */
     private void parseBenchmark(String benchmarkFile) {
         try{
-            Scanner scanner = new Scanner(new File("build/benchmarks/ass1/" + benchmarkFile));
+            Scanner scanner = new Scanner(new File("data/benchmarks/ass1/" + benchmarkFile));
             
             width = scanner.nextInt();
             height = scanner.nextInt();

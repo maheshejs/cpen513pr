@@ -32,7 +32,7 @@ public class Benchmark {
      * @param benchmarkFile the benchmark file
      */
     private void parseBenchmarkFile (String benchmarkFile) {
-        try (Scanner scanner = new Scanner(new File("build/benchmarks/ass2/" + benchmarkFile))) {
+        try (Scanner scanner = new Scanner(new File("data/benchmarks/ass2/" + benchmarkFile))) {
             numBlocks = scanner.nextInt();
             numConnections = scanner.nextInt();
             numRows = scanner.nextInt();
