@@ -18,7 +18,7 @@ public class App {
     public static void main (String[] args) {
         // Check command line arguments
         if (args.length != 2) {
-            System.out.println("Usage: args=\"<benchmarkFile> <useRowSpacing>\"");
+            System.err.println("Usage: args=\"<benchmarkFile> <useRowSpacing>\"");
             System.exit(1);
         }
 
@@ -29,18 +29,11 @@ public class App {
         Point2D[]    locs        = benchmark.getLocs();
         
         // Set tabu search and simulated annealing parameters
-        final int    TABU_MAX_FAILURES      = 100;
-        final int    TABU_NEIGHBORHOOD_SIZE = 100;
-        final int    TABU_LIST_SIZE         = 100;
-        final int    ANNEALING_MAX_FAILURES          = 1000;
+        final int    TABU_MAX_FAILURES      = 1000;
+        final int    TABU_NEIGHBORHOOD_SIZE = 10000; 
+        final int    TABU_LIST_SIZE         = 20;
         final int    ANNEALING_MOVES_PER_TEMPERATURE = (int) (10 * Math.pow(blocks.length, 4.0/3.0));
         final double ANNEALING_COOLING_RATE          = 0.95;
-        final double ANNEALING_INITIAL_TEMPERATURE   = 8.0;
-        
-        // Initialize tabu list, annealing temperature and failure counter
-        Queue<List<Integer>> tabus = new ArrayDeque<>(TABU_LIST_SIZE+1);
-        double temperature = ANNEALING_INITIAL_TEMPERATURE;
-        int fails = 0;
 
         // Initialize solution
         int[] solution = new int[locs.length];
@@ -48,15 +41,56 @@ public class App {
         int[] bestSolution = solution;
         double bestCost = cost;
         
+        // Initialize tabu list, annealing temperature and failure counter
+        Queue<List<Integer>> tabus = new ArrayDeque<>(TABU_LIST_SIZE+1);
+        double[] costs = new double[blocks.length];
+        for (int n = 0; n < blocks.length; ++n){
+            Neighbor neighbor = new Neighbor(solution, blocks, connections, locs, random);
+            costs[n] = cost + neighbor.getMoveCost();
+        }
+        double temperature = 20 * calculateStandardDeviation(costs);
+        int fails = 0;
+
         int iteration = 0;
-        boolean isAnnealing = false;
+        boolean isAnnealing = true;
         boolean isDone = false;
-        System.out.println("TABU SEARCH STARTED");
+        System.out.println("SIMULATED ANNEALING STARTED");
         while (!isDone) {
             boolean hasImproved = false;
+            // SIMULATED ANNEALING
+            if (isAnnealing) {
+                for (int m = 0; m < ANNEALING_MOVES_PER_TEMPERATURE; ++m, ++iteration) {
+                    //System.out.printf("ANNEALING | Cost = %.1f | Iteration = %d | Temperature = %.6f\n", cost, iteration, temperature);
+                    // Generate random neighbor
+                    Neighbor neighbor = new Neighbor(solution, blocks, connections, locs, random);
+                    
+                    if (random.nextDouble() < Math.exp(- neighbor.getMoveCost() / temperature)) {
+                        swapBlockPlacements(solution, blocks, connections, locs, neighbor.getFirstLocIndex(), neighbor.getSecondLocIndex());
+                        cost += neighbor.getMoveCost();
+                        // Checkpoint solution if improved
+                        if (cost < bestCost) {
+                            hasImproved = true;
+                            bestCost = cost;
+                            bestSolution = solution;
+                            //System.out.println("ANNEALING : " + bestCost + " | " + temperature + " | " + iteration);
+                        }
+                    }
+                }
+                // Update temperature
+                temperature *= ANNEALING_COOLING_RATE;
+
+                // Check if done
+                if (temperature < (0.001 * cost / connections.length))
+                {
+                    System.out.println("TABU SEARCH STARTED");
+                    isAnnealing = false;
+                    fails = 0;
+                    iteration = 0;
+                }
+            }
             // TABU SEARCH
-            if (!isAnnealing) {
-                System.out.printf("TABU | Cost = %.1f | Iteration = %d\n", cost, iteration);
+            else {
+                //System.out.printf("TABU | Cost = %.1f | Iteration = %d\n", cost, iteration);
                 // Generate neighborhood
                 Comparator<Neighbor> comp = Comparator.comparing(Neighbor::getMoveCost);
                 Queue<Neighbor> neighborhood = new PriorityQueue<>(comp);
@@ -69,12 +103,12 @@ public class App {
                 boolean isTabu = false;
                 while (!hasSelected && !neighborhood.isEmpty()) {
                     neighbor = neighborhood.peek();
-                    List<Integer> likelyTabu = List.of(solution[neighbor.getFirstLocIndex()],
-                                                       solution[neighbor.getSecondLocIndex()],
-                                                       neighbor.getFirstLocIndex(),
-                                                       neighbor.getSecondLocIndex());
+                    List<Integer> tabu = List.of(solution[neighbor.getFirstLocIndex()],
+                                                 solution[neighbor.getSecondLocIndex()],
+                                                 neighbor.getFirstLocIndex(),
+                                                 neighbor.getSecondLocIndex());
                     hasImproved = cost + neighbor.getMoveCost() < bestCost;
-                    isTabu = checkTabu(likelyTabu, tabus);
+                    isTabu = checkTabu(tabu, tabus);
                     if (hasImproved || !isTabu)
                         hasSelected = true;
                     else
@@ -89,7 +123,7 @@ public class App {
                     if (cost < bestCost) {
                         bestCost = cost;
                         bestSolution = solution;
-                        //System.out.println("TABU : " +  bestCost);
+                        //System.out.println("TABU : " +  bestCost + " | " + iteration);
                     }
                     
                     List<Integer> tabu = List.of(solution[neighbor.getSecondLocIndex()],
@@ -108,45 +142,14 @@ public class App {
                     if (hasImproved)
                         fails = 0;
                     else if (++fails > TABU_MAX_FAILURES) {
-                        isAnnealing = true;
+                        isDone = true;
                         fails = 0;
                         iteration = 0;
-                        System.out.println("SIMULATED ANNEALING STARTED");
                     }
                 }
-            }
-            // SIMULATED ANNEALING
-            else {
-                int s = 0;
-                for (int m = 0; m < ANNEALING_MOVES_PER_TEMPERATURE; ++m) {
-                    System.out.printf("Cost = %.1f | Iteration = %d | Temperature = %.6f\n", cost, iteration, temperature);
-                    ++iteration;
-                    // Generate random neighbor
-                    Neighbor neighbor = new Neighbor(solution, blocks, connections, locs, random);
-
-                    if (random.nextDouble() < Math.exp(- neighbor.getMoveCost() / temperature)) {
-                        ++s;
-                        swapBlockPlacements(solution, blocks, connections, locs, neighbor.getFirstLocIndex(), neighbor.getSecondLocIndex());
-                        cost += neighbor.getMoveCost();
-                        // Checkpoint solution if improved
-                        if (cost < bestCost) {
-                            hasImproved = true;
-                            bestCost = cost;
-                            bestSolution = solution;
-                            //System.out.println("ANNEALING : " + bestCost + " | " + temperature + " | " + iteration);
-                        }
-                    }
-                }
-                // Update temperature
-                temperature *= ANNEALING_COOLING_RATE;
-
-                // Check if done
-                if (hasImproved)
-                    fails = 0;
-                else if (++fails > ANNEALING_MAX_FAILURES)
-                    isDone = true;
             }
         }
+        
         // Print final solution and cost
         System.out.println(Arrays.toString(bestSolution));
         System.out.println(bestCost);
@@ -159,7 +162,7 @@ public class App {
      * @return true if the move is tabu, false otherwise.
      */
     public static boolean checkTabu (List<Integer> likelyTabu, Queue<List<Integer>> tabus) {
-        /*
+    
         for (List<Integer> tabu : tabus) {
             if (tabu.get(0) == likelyTabu.get(0) && tabu.get(1) == likelyTabu.get(1)) {
                 return true;
@@ -168,22 +171,7 @@ public class App {
                 return true;
             }
         }
-        */
-        for (List<Integer> tabu : tabus) {
-            if (tabu.get(0) == likelyTabu.get(0) && tabu.get(2) == likelyTabu.get(2)) {
-                return true;
-            }
-            if (tabu.get(0) == likelyTabu.get(1) && tabu.get(2) == likelyTabu.get(3)) {
-                return true;
-            }
-            if (tabu.get(1) == likelyTabu.get(0) && tabu.get(3) == likelyTabu.get(2)) {
-                return true;
-            }
-            if (tabu.get(1) == likelyTabu.get(1) && tabu.get(3) == likelyTabu.get(3)) {
-                return true;
-            }
-        }
-
+        
         return false;
     }
 

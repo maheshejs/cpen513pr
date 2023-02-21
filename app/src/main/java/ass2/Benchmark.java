@@ -60,7 +60,7 @@ public class Benchmark {
                 locs[locIndex] = getLoc(locIndex);
         } catch (FileNotFoundException e) {
             System.err.println("Unable to load benchmark file: " + benchmarkFile);
-            e.printStackTrace();
+            System.exit(1);
         }
     }
     
