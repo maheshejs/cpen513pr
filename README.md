@@ -1,8 +1,6 @@
-# Placement
+# Partitioning
 
-This project implements a simulated-annealing based placement tool that targets standard cells.
-The optimization goal is to minimize the half-perimeter of the smallest bounding box containing all blocks for
-each connection, summed over all connections.
+This project implements a branch-and-bound based bi-partitioning algorithm.
 
 ## Getting Started
 
@@ -18,7 +16,7 @@ These instructions will get you a copy of the project up and running on your loc
 ```shell
 git clone https://github.com/maheshejs/cpen513pr.git
 cd cpen513pr
-./gradlew run --args="<benchmarkFile> <useRowSpacing>"
+./gradlew run --args="<benchmarkFile>"
 ```
 
 ### Testing
@@ -35,13 +33,13 @@ The source code files for the project are located at :
       └── src
           └── main
               └── java
-                  └── ass2
+                  └── ass3
           └── test
               └── java
-                  └── ass2
+                  └── ass3
       └── data
           └── benchmarks
-              └── ass2
+              └── ass3
 ```
 
 ## Authors

@@ -22,7 +22,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("ass2.App")
+    mainClass.set("ass3.App")
 }
 
 tasks.named<Test>("test") {

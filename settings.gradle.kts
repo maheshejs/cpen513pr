@@ -7,5 +7,5 @@
  * in the user manual at https://docs.gradle.org/7.3/userguide/multi_project_builds.html
  */
 
-rootProject.name = "ASS2"
+rootProject.name = "ASS3"
 include("app")
