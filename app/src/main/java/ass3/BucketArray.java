@@ -114,8 +114,6 @@ public class BucketArray {
      * @return the first element in the bucket
      */
     public int peekBucket (int bucketIndex) {
-        if (buckets.get(bucketIndex).isEmpty())
-            throw new NoSuchElementException();
         return buckets.get(bucketIndex).peek();
     }
 
@@ -130,10 +128,9 @@ public class BucketArray {
     @Override
     public String toString() {
         int numBuckets = buckets.size();
-        int midBucketIndex = (numBuckets - 1) / 2;
         String str = "";
         for (int bucketIndex = 0; bucketIndex < numBuckets; ++bucketIndex)
-            str += String.format("Bucket %+d: %s\n", bucketIndex - midBucketIndex, buckets.get(bucketIndex));
+            str += String.format("Bucket %+d: %s\n", bucketIndex, buckets.get(bucketIndex));
         return str;
     }
 }

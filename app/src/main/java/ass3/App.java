@@ -226,9 +226,9 @@ public class App extends Application {
                 int baseBlockIndex = -1;
                 for (int partitionIndex = 0; partitionIndex < numPartitions; ++partitionIndex) {
                     int bucketIndex = bucketArrays[partitionIndex].getHighestFilledBucketIndex();
-                    baseBlockGain   = bucketIndex - maxGain;
-                    baseBlockIndex  = bucketArrays[partitionIndex].peekBucket(bucketIndex);
-                    if (baseBlockIndex != -1) {
+                    if (bucketIndex != -1) {
+                        baseBlockGain   = bucketIndex - maxGain;
+                        baseBlockIndex  = bucketArrays[partitionIndex].peekBucket(bucketIndex);
                         if (solution.get(baseBlockIndex) != (partitionIndex == 1))
                             throw new RuntimeException("Error - Partition index does not match solution");
                         solution.flip(baseBlockIndex);
