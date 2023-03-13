@@ -10,6 +10,11 @@ public class DoublyLinkedList<E> {
 	private DNode<E> head;
 	private int size = 0;
 
+ 
+	/**
+     * Adds a node to the list
+	 * @param node the node to add
+	 */
 	public void add(DNode<E> node) {
         node.next = head;
         if (head != null)
@@ -19,6 +24,10 @@ public class DoublyLinkedList<E> {
         ++size;
 	}
  
+	/**
+     * Removes the node from the list
+	 * @param node the node to remove
+	 */
 	public void remove(DNode<E> node) {
         if (node.prev != null)
             node.prev.next = node.next;
@@ -30,16 +39,28 @@ public class DoublyLinkedList<E> {
         --size;
 	}
 
+    /**
+     * Returns the first element in the list
+     * @return 
+     */
     public E peek () {
         if (head == null)
             throw new NoSuchElementException();
         return head.e;
     }
 
+	/**
+     * Returns the size of the list
+	 * @return the size of the list
+	 */
 	public int size() {
 		return size;
 	}
 
+	/**
+     * Returns true if the list is empty
+	 * @return true if the list is empty
+	 */
 	public boolean isEmpty() {
 		return size == 0;
 	}
