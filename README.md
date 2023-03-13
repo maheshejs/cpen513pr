@@ -1,6 +1,6 @@
 # Partitioning
 
-This project implements a branch-and-bound based bi-partitioning algorithm.
+This project implements a branch-and-bound based and a Fiduccia-Mattheyses bi-partitioning algorithm.
 
 ## Getting Started
 
@@ -16,7 +16,7 @@ These instructions will get you a copy of the project up and running on your loc
 ```shell
 git clone https://github.com/maheshejs/cpen513pr.git
 cd cpen513pr
-./gradlew run --args="<benchmarkFile>"
+./gradlew run
 ```
 
 ### Testing
@@ -41,6 +41,10 @@ The source code files for the project are located at :
           └── benchmarks
               └── ass3
 ```
+
+## Graphics
+
+The project includes benchmark graphics in the `graphics/ass3` folder.
 
 ## Authors
 
