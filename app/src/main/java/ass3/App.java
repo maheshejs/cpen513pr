@@ -1,5 +1,6 @@
 package ass3;
 
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -73,9 +74,9 @@ public class App extends Application {
             group.getChildren().add(canvas);
             String benchmarkFile = cBox.getValue() + ".txt";
             Benchmark benchmark = new Benchmark(benchmarkFile);
-            partitionBenchmarkFM(benchmark);
-            drawBenchmarkSolution(benchmark, group);
+            partitionBenchmark(benchmark, true);
             printBenchmarkSolution(benchmark);
+            drawBenchmarkSolution(benchmark, group);
         });
 
         VBox vBox = new VBox();
@@ -99,20 +100,32 @@ public class App extends Application {
     /**
      * Partitions a benchmark using a branch and bound algorithm
      * @param benchmark the benchmark to partition
+     * @param useFM whether to use FM algorithm to initialize the solution
      */
-    public static void partitionBenchmark(Benchmark benchmark) {
+    public static void partitionBenchmark(Benchmark benchmark, boolean useFM) {
         Block[] blocks = benchmark.getBlocks();
+        Connection[] connections = benchmark.getConnections();
         int numBlocks = benchmark.getNumBlocks();
 
+        // Initialize solution
         BitSet solution = new BitSet(numBlocks);
-        int solutionCost = -1;
-        int upperBoundPartitionCost = Integer.MAX_VALUE;
+        solution.set(0, numBlocks / NUM_PARTITIONS);
+        int solutionCost = computeSolutionCost(blocks, connections, solution);
+        int upperBoundPartitionCost = solutionCost;
+        if (useFM) {
+            partitionBenchmarkFM(benchmark);
+            solution = benchmark.getSolution();
+            solutionCost = benchmark.getSolutionCost();
+            upperBoundPartitionCost = solutionCost;
+        }
         int upperBoundPartitionSize = (numBlocks + 1) / NUM_PARTITIONS;
 
+        BigInteger numVisitedNodes = BigInteger.valueOf(0);;
         Deque<INode> queue = new ArrayDeque<>();
         INode rootNode = new INode();
         queue.push(rootNode);
         while (!queue.isEmpty()) {
+            numVisitedNodes = numVisitedNodes.add(BigInteger.valueOf(1));
             INode node = queue.pop();
 
             // Check if node is a leaf
@@ -149,8 +162,14 @@ public class App extends Application {
         }
         benchmark.setSolution(solution);
         benchmark.setSolutionCost(solutionCost);
+
+        System.out.println("Number of visited nodes: " + numVisitedNodes);
     }
 
+    /**
+     * Partitions a benchmark using FM algorithm
+     * @param benchmark the benchmark to partition
+     */
     public static void partitionBenchmarkFM(Benchmark benchmark) {
         Block[] blocks = benchmark.getBlocks();
         Connection[] connections = benchmark.getConnections();
