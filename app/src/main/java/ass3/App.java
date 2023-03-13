@@ -75,6 +75,7 @@ public class App extends Application {
             Benchmark benchmark = new Benchmark(benchmarkFile);
             partitionBenchmarkFM(benchmark);
             drawBenchmarkSolution(benchmark, group);
+            printBenchmarkSolution(benchmark);
         });
 
         VBox vBox = new VBox();
@@ -97,8 +98,7 @@ public class App extends Application {
 
     /**
      * Partitions a benchmark using a branch and bound algorithm
-     * 
-     * @param benchmark
+     * @param benchmark the benchmark to partition
      */
     public static void partitionBenchmark(Benchmark benchmark) {
         Block[] blocks = benchmark.getBlocks();
@@ -107,7 +107,7 @@ public class App extends Application {
         BitSet solution = new BitSet(numBlocks);
         int solutionCost = -1;
         int upperBoundPartitionCost = Integer.MAX_VALUE;
-        int upperBoundPartitionSize = (numBlocks + 1) / 2;
+        int upperBoundPartitionSize = (numBlocks + 1) / NUM_PARTITIONS;
 
         Deque<INode> queue = new ArrayDeque<>();
         INode rootNode = new INode();
@@ -149,12 +149,6 @@ public class App extends Application {
         }
         benchmark.setSolution(solution);
         benchmark.setSolutionCost(solutionCost);
-
-        // Print solution
-        System.out.printf("Solution cost : %d\n", solutionCost);
-        System.out.printf("Solution : Right blocks %s\n", solution.toString());
-        int numRightBlocks = solution.cardinality();
-        System.out.printf("L = %d, R = %d\n", numBlocks - numRightBlocks, numRightBlocks);
     }
 
     public static void partitionBenchmarkFM(Benchmark benchmark) {
@@ -162,163 +156,227 @@ public class App extends Application {
         Connection[] connections = benchmark.getConnections();
         int numBlocks = benchmark.getNumBlocks();
         int numConnections = benchmark.getNumConnections();
-        int numPartitions = 2;
-        int numPasses = 5;
-
         int maxGain = Arrays.stream(blocks)
                             .mapToInt(e -> e.getConnectionIndexes().size())
                             .max()
                             .orElse(-1);
 
-        BucketArray bucketArrays[] = new BucketArray[numPartitions];
-        for (int partitionIndex = 0; partitionIndex < numPartitions; ++partitionIndex)
-            bucketArrays[partitionIndex] = new BucketArray(numBlocks, 2 * maxGain + 1);
-
         // Initialize solution
         BitSet solution = new BitSet(numBlocks);
-        solution.set(0, numBlocks / numPartitions);
-
-        List<Set<Integer>> connectionsIndexes = new ArrayList<>();
-        for (int partitionIndex = 0; partitionIndex < numPartitions; ++partitionIndex)
-            connectionsIndexes.add(new HashSet<>());
-        for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
-            int partitionIndex = solution.get(blockIndex) ? 1 : 0;
-            for (int connectionIndex : blocks[blockIndex].getConnectionIndexes())
-                connectionsIndexes.get(partitionIndex).add(connectionIndex);
-        }
-        int solutionCost = Math.toIntExact(connectionsIndexes.get(0).stream()
-                                                                    .filter(connectionsIndexes.get(1)::contains)
-                                                                    .count());
-        
+        solution.set(0, numBlocks / NUM_PARTITIONS);
+        int solutionCost = computeSolutionCost(blocks, connections, solution);
         BitSet bestSolution = (BitSet) solution.clone();
         int bestSolutionCost = solutionCost;
 
-        while (numPasses-- > 0) {
-            int fromPartitions[][] = new int[numPartitions][numConnections];
-            int toPartitions[][] = new int[numPartitions][numConnections];
-            for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
-                int partitionIndex = solution.get(blockIndex) ? 1 : 0;
-                for (int connectionIndex : blocks[blockIndex].getConnectionIndexes()) {
-                    ++fromPartitions[partitionIndex][connectionIndex];
-                    ++toPartitions[1 - partitionIndex][connectionIndex];
-                }
-            }
+        for (int pass = 0; pass < NUM_FM_PASSES; ++pass) {
+            // Initialize gains
+            BucketArray bucketArrays[] = new BucketArray[NUM_PARTITIONS];
+            for (int partitionIndex = 0; partitionIndex < NUM_PARTITIONS; ++partitionIndex)
+                bucketArrays[partitionIndex] = new BucketArray(numBlocks, 2 * maxGain + 1);
+            int fromPartitions[][] = new int[NUM_PARTITIONS][numConnections];
+            int toPartitions[][] = new int[NUM_PARTITIONS][numConnections];
+            initializeBlockGainsFM(bucketArrays, fromPartitions, toPartitions, blocks, solution);
 
-            int gains[] = new int[numBlocks];
-            for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
-                int partitionIndex = solution.get(blockIndex) ? 1 : 0;
-                for (int connectionIndex : blocks[blockIndex].getConnectionIndexes()) {
-                    if (fromPartitions[partitionIndex][connectionIndex] == 1)
-                        ++gains[blockIndex];
-                    if (toPartitions[partitionIndex][connectionIndex] == 0)
-                        --gains[blockIndex];
-                }
-            }
-            for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
-                int partitionIndex = solution.get(blockIndex) ? 1 : 0;
-                bucketArrays[partitionIndex].addBlock(blockIndex, gains[blockIndex] + maxGain);
-            }
+            BitSet blockLocks = new BitSet(numBlocks);
+            while (blockLocks.cardinality() != numBlocks) {
+                // Choose block move
+                Pair<Integer, Integer> pair = chooseBlockMoveFM(bucketArrays, blocks, solution);
+                if (pair == null) 
+                    break; //
 
-            BitSet lockBlocks = new BitSet(numBlocks);
-            while (lockBlocks.cardinality() != numBlocks) {
-                List<Pair<Integer, Integer>> pairs = new ArrayList<>(numPartitions);
-                int baseBlockGain  = -1;
-                int baseBlockIndex = -1;
-                for (int partitionIndex = 0; partitionIndex < numPartitions; ++partitionIndex) {
-                    int bucketIndex = bucketArrays[partitionIndex].getHighestFilledBucketIndex();
-                    if (bucketIndex != -1) {
-                        baseBlockGain   = bucketIndex - maxGain;
-                        baseBlockIndex  = bucketArrays[partitionIndex].peekBucket(bucketIndex);
-                        if (solution.get(baseBlockIndex) != (partitionIndex == 1))
-                            throw new RuntimeException("Error - Partition index does not match solution");
-                        solution.flip(baseBlockIndex);
-                        boolean isMoveBalanced = (numPartitions * solution.cardinality() >= numBlocks - numPartitions) &&
-                                                   (numPartitions * solution.cardinality() <= numBlocks + numPartitions);
-                        if (isMoveBalanced)
-                            pairs.add(new Pair<>(baseBlockIndex, baseBlockGain));
-                        solution.flip(baseBlockIndex);
-                    }
-                }
-
-                Pair<Integer, Integer> pair = pairs.stream()
-                                                   .max(Comparator.comparing(Pair::getValue))
-                                                   .orElse(null);
-
-                if (pair == null)
-                    break;
-
-                baseBlockIndex = pair.getKey();
-                baseBlockGain = pair.getValue();
-                int partitionIndex = solution.get(baseBlockIndex) ? 1 : 0;
+                // Apply block move
+                int baseBlockIndex = pair.getKey();
+                int baseBlockGain  = pair.getValue() - maxGain;
+                int partitionIndex = boolToInt(solution.get(baseBlockIndex));
                 bucketArrays[partitionIndex].removeBlock(baseBlockIndex);
-                lockBlocks.set(baseBlockIndex);
+                blockLocks.set(baseBlockIndex);
                 solution.flip(baseBlockIndex);
                 solutionCost -= baseBlockGain;
                 
-                for (int connectionIndex : blocks[baseBlockIndex].getConnectionIndexes()) {
-                    if (toPartitions[partitionIndex][connectionIndex] == 0) {
-                        for (int blockIndex : connections[connectionIndex].getBlockIndexes()) {
-                            if (!lockBlocks.get(blockIndex))
-                                bucketArrays[partitionIndex].moveUpBlock(blockIndex);
-                        }
-                    } 
-                    else if (toPartitions[partitionIndex][connectionIndex] == 1) {
-                        for (int blockIndex : connections[connectionIndex].getBlockIndexes()) {
-                            if ((solution.get(blockIndex) != (partitionIndex == 1)) && !lockBlocks.get(blockIndex))
-                                bucketArrays[1 - partitionIndex].moveDownBlock(blockIndex);
-                        }
-                    }
+                // Update gains
+                updateBlockGainsFM(bucketArrays, fromPartitions, toPartitions, 
+                                   blocks, connections, blockLocks, baseBlockIndex, solution);
 
-                    --fromPartitions[partitionIndex][connectionIndex];
-                    --toPartitions[1-partitionIndex][connectionIndex];
-                    
-                    ++toPartitions[partitionIndex][connectionIndex];
-                    ++fromPartitions[1-partitionIndex][connectionIndex];
-
-                    if (fromPartitions[partitionIndex][connectionIndex] == 0) {
-                        for (int blockIndex : connections[connectionIndex].getBlockIndexes()) {
-                            if (!lockBlocks.get(blockIndex))
-                                bucketArrays[1 - partitionIndex].moveDownBlock(blockIndex);
-                        }
-                    } 
-                    else if (fromPartitions[partitionIndex][connectionIndex] == 1) {
-                        for (int blockIndex : connections[connectionIndex].getBlockIndexes()) {
-                            if ((solution.get(blockIndex) == (partitionIndex == 1)) && !lockBlocks.get(blockIndex))
-                                bucketArrays[partitionIndex].moveUpBlock(blockIndex);
-                        }
-                    }
-                }
-
+                // Checkpoint solution if it is a balanced improvement
                 int numRightBlocks = solution.cardinality();
                 int numLeftBlocks = numBlocks - numRightBlocks;
                 int blockDifference = Math.abs(numRightBlocks - numLeftBlocks);
                 boolean isSolutionBalanced = blockDifference >= 0 && blockDifference <= 1;
-                if (isSolutionBalanced) {
-                    if (solutionCost < bestSolutionCost) {
-                        bestSolution = (BitSet) solution.clone();
-                        bestSolutionCost = solutionCost;
-                    }
+                if (isSolutionBalanced && solutionCost < bestSolutionCost) {
+                    bestSolution = (BitSet) solution.clone();
+                    bestSolutionCost = solutionCost;
                 }
             }
+            // Rollback to best seen solution
             solution = (BitSet) bestSolution.clone();
             solutionCost = bestSolutionCost;
         }
-
         benchmark.setSolution(solution);
         benchmark.setSolutionCost(solutionCost);
+    }
 
-        // Print solution
+    /**
+     * Compute the cost of a solution
+     * @param blocks blocks
+     * @param connections connections
+     * @param solution solution
+     * @return cost of the solution
+     */
+    public static int computeSolutionCost (Block blocks[], Connection connections[],
+                                           BitSet solution) {
+        int numBlocks = blocks.length;
+        List<Set<Integer>> connectionsIndexes = new ArrayList<>();
+        for (int partitionIndex = 0; partitionIndex < NUM_PARTITIONS; ++partitionIndex)
+            connectionsIndexes.add(new HashSet<>());
+        for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
+            int partitionIndex = boolToInt(solution.get(blockIndex));
+            for (int connectionIndex : blocks[blockIndex].getConnectionIndexes())
+                connectionsIndexes.get(partitionIndex).add(connectionIndex);
+        }
+        return Math.toIntExact(connectionsIndexes.get(0).stream()
+                                                        .filter(connectionsIndexes.get(1)::contains)
+                                                        .count());
+    }
+
+    /**
+     * Choose a block move for the FM algorithm
+     * @param bucketArrays bucket arrays
+     * @param blocks blocks
+     * @param solution solution
+     * @return block move encoded as a pair of block index and bucket index
+     */
+    public static Pair<Integer, Integer> chooseBlockMoveFM (BucketArray bucketArrays[],
+                                                            Block blocks[],
+                                                            BitSet solution) {
+        int numBlocks = blocks.length;
+        List<Pair<Integer, Integer>> pairs = new ArrayList<>(NUM_PARTITIONS);
+        for (int partitionIndex = 0; partitionIndex < NUM_PARTITIONS; ++partitionIndex) {
+            int bucketIndex = bucketArrays[partitionIndex].getHighestFilledBucketIndex();
+            if (bucketIndex != -1) {
+                int blockIndex  = bucketArrays[partitionIndex].peekBucket(bucketIndex);
+                if (boolToInt(solution.get(blockIndex)) != partitionIndex)
+                    throw new RuntimeException("Error - Partition does not match solution");
+                solution.flip(blockIndex);
+                boolean isMoveBalanced = (NUM_PARTITIONS * solution.cardinality() >= numBlocks - NUM_PARTITIONS) &&
+                                            (NUM_PARTITIONS * solution.cardinality() <= numBlocks + NUM_PARTITIONS);
+                if (isMoveBalanced)
+                    pairs.add(new Pair<>(blockIndex, bucketIndex));
+                solution.flip(blockIndex);
+            }
+        }
+
+        Pair<Integer, Integer> pair = pairs.stream()
+                                           .max(Comparator.comparing(Pair::getValue))
+                                           .orElse(null);
+        return pair;
+    }
+
+    /**
+     * Initialize the block gains for the FM algorithm
+     * @param bucketArrays bucket arrays
+     * @param fromPartitions
+     * @param toPartitions
+     * @param blocks blocks
+     * @param solution solution
+     */
+    public static void initializeBlockGainsFM (BucketArray bucketArrays[],
+                                               int fromPartitions[][], int toPartitions[][],
+                                               Block blocks[],
+                                               BitSet solution) {
+        int maxGain   = bucketArrays[0].getMaxBucketIndex() / 2;
+        int numBlocks = blocks.length;
+        for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
+            int partitionIndex = boolToInt(solution.get(blockIndex));
+            for (int connectionIndex : blocks[blockIndex].getConnectionIndexes()) {
+                ++fromPartitions[partitionIndex][connectionIndex];
+                ++toPartitions[1-partitionIndex][connectionIndex];
+            }
+        }
+
+        int gains[] = new int[numBlocks];
+        for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
+            int partitionIndex = boolToInt(solution.get(blockIndex));
+            for (int connectionIndex : blocks[blockIndex].getConnectionIndexes()) {
+                if (fromPartitions[partitionIndex][connectionIndex] == 1)
+                    ++gains[blockIndex];
+                if (toPartitions[partitionIndex][connectionIndex] == 0)
+                    --gains[blockIndex];
+            }
+        }
+        for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
+            int partitionIndex = boolToInt(solution.get(blockIndex));
+            bucketArrays[partitionIndex].addBlock(blockIndex, gains[blockIndex] + maxGain);
+        }
+    }
+    
+    /**
+     * Update the block gains for the FM algorithm
+     * @param bucketArrays bucket arrays
+     * @param fromPartitions
+     * @param toPartitions
+     * @param blocks blocks
+     * @param connections connections
+     * @param blockLocks block locks
+     * @param baseBlockIndex base block index
+     * @param solution solution
+     */
+    public static void updateBlockGainsFM (BucketArray bucketArrays[],
+                                           int fromPartitions[][], int toPartitions[][],
+                                           Block blocks[], Connection connections[],
+                                           BitSet blockLocks, int baseBlockIndex,
+                                           BitSet solution) {
+        int partitionIndex = boolToInt(solution.get(baseBlockIndex));
+        for (int connectionIndex : blocks[baseBlockIndex].getConnectionIndexes()) {
+            if (toPartitions[1-partitionIndex][connectionIndex] == 0) {
+                for (int blockIndex : connections[connectionIndex].getBlockIndexes()) {
+                    if (!blockLocks.get(blockIndex))
+                        bucketArrays[1-partitionIndex].moveUpBlock(blockIndex);
+                }
+            } 
+            else if (toPartitions[1-partitionIndex][connectionIndex] == 1) {
+                for (int blockIndex : connections[connectionIndex].getBlockIndexes())
+                    if (boolToInt(solution.get(blockIndex)) == partitionIndex && !blockLocks.get(blockIndex))
+                        bucketArrays[partitionIndex].moveDownBlock(blockIndex);
+            }
+
+            --fromPartitions[1-partitionIndex][connectionIndex];
+            --toPartitions[partitionIndex][connectionIndex];
+            
+            ++toPartitions[1-partitionIndex][connectionIndex];
+            ++fromPartitions[partitionIndex][connectionIndex];
+
+            if (fromPartitions[1-partitionIndex][connectionIndex] == 0) {
+                for (int blockIndex : connections[connectionIndex].getBlockIndexes())
+                    if (!blockLocks.get(blockIndex))
+                        bucketArrays[partitionIndex].moveDownBlock(blockIndex);
+            } 
+            else if (fromPartitions[1-partitionIndex][connectionIndex] == 1) {
+                for (int blockIndex : connections[connectionIndex].getBlockIndexes())
+                    if (boolToInt(solution.get(blockIndex)) != partitionIndex && !blockLocks.get(blockIndex))
+                        bucketArrays[1-partitionIndex].moveUpBlock(blockIndex);
+            }
+        }
+    }
+
+    /**
+     * Prints the benchmark solution
+     * @param benchmark the benchmark to print the solution for
+     */
+    public static void printBenchmarkSolution(Benchmark benchmark) {
+        BitSet solution = benchmark.getSolution();
+        int solutionCost = benchmark.getSolutionCost();
+        int numBlocks = benchmark.getNumBlocks();
+        int numRightBlocks = solution.cardinality();
+        int numLeftBlocks = numBlocks - numRightBlocks;
         System.out.printf("Solution cost : %d\n", solutionCost);
         System.out.printf("Solution : Right blocks %s\n", solution.toString());
-        int numRightBlocks = solution.cardinality();
-        System.out.printf("L = %d, R = %d\n", numBlocks - numRightBlocks, numRightBlocks);
+        System.out.printf("L = %d, R = %d\n", numLeftBlocks, numRightBlocks);
     }
 
     /**
      * Draws the benchmark solution
-     * 
-     * @param benchmark
-     * @param group
+     * @param benchmark the benchmark
+     * @param group the container to draw the solution in
      */
     public static void drawBenchmarkSolution(Benchmark benchmark, Group group) {
         Connection[] connections = benchmark.getConnections();
@@ -360,5 +418,14 @@ public class App extends Application {
             text.setStyle("-fx-font-size: 12px;");
             group.getChildren().add(text);
         }
+    }
+
+    /**
+     * Converts a boolean to an integer
+     * @param b the boolean to convert
+     * @return 1 if b is true, 0 otherwise
+     */
+    public static int boolToInt(boolean b) { 
+        return b ? 1 : 0;
     }
 }

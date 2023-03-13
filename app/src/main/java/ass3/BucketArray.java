@@ -1,6 +1,5 @@
 package ass3;
 
-import java.util.NoSuchElementException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -106,6 +105,14 @@ public class BucketArray {
      */
     public int getHighestFilledBucketIndex () {
         return highestFilledBucketIndex;
+    }
+
+    /**
+     * Returns the maximum bucket index
+     * @return the maximum bucket index
+     */
+    public int getMaxBucketIndex () {
+        return buckets.size() - 1;
     }
 
     /**
