@@ -5,7 +5,7 @@
 <img src="pngs/cc.png" width="500">
 
 ### 2. cm82a
-<img src="pngs/cm82a.png" width="500">
+<img src="pngs/cm082a.png" width="500">
 
 ### 3. cm138a
 <img src="pngs/cm138a.png" width="500">
@@ -20,7 +20,7 @@
 <img src="pngs/con1.png" width="500">
 
 ### 8. ugly8
-<img src="pngs/ugly8.png" width="500">
+<img src="pngs/ugly08.png" width="500">
 
 ### 9. ugly16
 <img src="pngs/ugly16.png" width="500">
