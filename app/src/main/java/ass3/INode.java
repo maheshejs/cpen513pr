@@ -3,6 +3,10 @@ package ass3;
 import java.util.Set;
 import java.util.HashSet;
 
+
+/**
+ * Represents an intelligent node in a tree for branch and bound partitioning
+ */
 public class INode { 
     private int numLeftChildren;
     private int numRightChildren;
@@ -11,6 +15,9 @@ public class INode {
     private Set<Integer> leftConnectionIndexes;
     private Set<Integer> rightConnectionIndexes;
 
+    /**
+     * Creates a new INode
+     */
     INode() {
         this.parent = null;
 
@@ -21,6 +28,12 @@ public class INode {
         rightConnectionIndexes = new HashSet<>();
     }
 
+    /**
+     * Creates a new INode
+     * @param parent the parent of the node
+     * @param isLeftChild whether the node is a left child
+     * @param connectionIndexes the connections of the node
+     */
     INode(INode parent, boolean isLeftChild, Set<Integer> connectionIndexes) {
         this.parent = parent;
 
@@ -41,23 +54,46 @@ public class INode {
         }
     }
 
-    INode getParent(){
+    /**
+     * Returns the parent of the node
+     * @return the parent of the node
+     */
+    INode getParent() {
         return parent;
     }
 
+    /**
+     * Returns the number of left children so far in the tree
+     * @return the number of left children
+
+     */
     int getNumLeftChildren() {
         return numLeftChildren;
     }
 
+    /**
+     * Returns the number of right children nodes so far in the tree
+     * @return the number of right children nodes
+     */
     int getNumRightChildren() {
         return numRightChildren;
     }
 
+    /**
+     * Returns the associated block of the node
+     * @return the block index
+     */
     int getBlockIndex() {
         return blockIndex;
     }
 
+    /**
+     * Returns the cost of the node
+     * @return the cost
+     */
     int getCost() {
-        return Math.toIntExact(leftConnectionIndexes.stream().filter(rightConnectionIndexes::contains).count());
+        return Math.toIntExact(leftConnectionIndexes.stream()
+                                                    .filter(rightConnectionIndexes::contains)
+                                                    .count());
     }
 }

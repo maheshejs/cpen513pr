@@ -1,6 +1,7 @@
 package ass3;
 
 import java.util.Scanner;
+import java.util.BitSet;
 import java.io.File;
 import java.io.FileNotFoundException;
 
@@ -9,7 +10,7 @@ public class Benchmark {
     private int numConnections;
     private Block[] blocks;
     private Connection[] connections;
-    private int[] solution;
+    private BitSet solution;
     private int solutionCost;
 
     /**
@@ -43,7 +44,7 @@ public class Benchmark {
                     connections[connectionIndex].addBlockIndex(blockIndex);
                 }
             }
-            solution = new int[numBlocks];
+            solution = new BitSet(numBlocks);
             solutionCost = -1;
         } catch (FileNotFoundException e) {
             System.err.println("Unable to load benchmark file: " + benchmarkFile);
@@ -87,7 +88,7 @@ public class Benchmark {
      * Returns the solution
      * @return the solution
      */
-    public int[] getSolution () {
+    public BitSet getSolution () {
         return solution;
     }
 
@@ -95,7 +96,7 @@ public class Benchmark {
      * Sets the solution
      * @param solution the solution
      */
-    public void setSolution (int[] solution) {
+    public void setSolution (BitSet solution) {
         this.solution = solution;
     }
 
