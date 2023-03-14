@@ -1,6 +1,6 @@
 
 # Graphics
-## Partition of benchmarks with Branch and Bound
+## Partitioning of benchmarks with Branch and Bound initialized with Fiduccia–Mattheyses algorithm
 ### 1. cc
 <img src="pngs/cc.png" width="500">
 
@@ -19,6 +19,9 @@
 ### 6. con1
 <img src="pngs/con1.png" width="500">
 
+### 7. twocm
+<img src="pngs/twocm.png" width="500">
+
 ### 8. ugly8
 <img src="pngs/ugly08.png" width="500">
 
@@ -28,7 +31,4 @@
 ### 10. z4ml
 <img src="pngs/z4ml.png" width="500">
 
-## Partition of benchmarks with Fiduccia–Mattheyses algorithm
-### 9. twocm
-<img src="pngs/twocm.png" width="500">
 

@@ -98,26 +98,52 @@ public class App extends Application {
     }
 
     /**
-     * Partitions a benchmark using a branch and bound algorithm
+     * Partitions a benchmark using a Branch and Bound algorithm
      * @param benchmark the benchmark to partition
      * @param useFM whether to use FM algorithm to initialize the solution
      */
     public static void partitionBenchmark(Benchmark benchmark, boolean useFM) {
+        partitionBenchmarkTriv(benchmark);
+        // Trivial solution
+        BitSet solution = benchmark.getSolution();
+        int solutionCost = benchmark.getSolutionCost();
+        if (useFM) {
+            partitionBenchmarkFM(benchmark, solution, solutionCost);
+            // FM solution
+            solution = benchmark.getSolution();
+            solutionCost = benchmark.getSolutionCost();
+        }
+        partitionBenchmarkBB(benchmark, solution, solutionCost);
+    }
+
+    /**
+     * Partitions a benchmark using trivial algorithm
+     * @param benchmark the benchmark to partition
+     */
+    public static void partitionBenchmarkTriv(Benchmark benchmark) {
         Block[] blocks = benchmark.getBlocks();
         Connection[] connections = benchmark.getConnections();
         int numBlocks = benchmark.getNumBlocks();
 
-        // Initialize solution
         BitSet solution = new BitSet(numBlocks);
         solution.set(0, numBlocks / NUM_PARTITIONS);
         int solutionCost = computeSolutionCost(blocks, connections, solution);
+
+        benchmark.setSolution(solution);
+        benchmark.setSolutionCost(solutionCost);
+    }
+
+    /**
+     * Partitions a benchmark using a branch and bound algorithm
+     * @param benchmark the benchmark to partition
+     * @param solution the initial balanced solution of the benchmark
+     * @param solutionCost the cost of the initial balanced solution
+     */
+    public static void partitionBenchmarkBB(Benchmark benchmark, BitSet solution, int solutionCost) {
+        Block[] blocks = benchmark.getBlocks();
+        int numBlocks = benchmark.getNumBlocks();
+
         int upperBoundPartitionCost = solutionCost;
-        if (useFM) {
-            partitionBenchmarkFM(benchmark);
-            solution = benchmark.getSolution();
-            solutionCost = benchmark.getSolutionCost();
-            upperBoundPartitionCost = solutionCost;
-        }
         int upperBoundPartitionSize = (numBlocks + 1) / NUM_PARTITIONS;
 
         BigInteger numVisitedNodes = BigInteger.valueOf(0);;
@@ -145,7 +171,8 @@ public class App extends Application {
                     }
                     solutionCost = node.getCost();
                 }
-            } else {
+            }
+            else {
                 Set<Integer> connectionIndexes = blocks[node.getBlockIndex() + 1].getConnectionIndexes();
                 INode leftChildNode = new INode(node, true, connectionIndexes);
                 INode rightChildNode = new INode(node, false, connectionIndexes);
@@ -169,8 +196,10 @@ public class App extends Application {
     /**
      * Partitions a benchmark using FM algorithm
      * @param benchmark the benchmark to partition
+     * @param solution the initial balanced solution of the benchmark
+     * @param solutionCost the cost of the initial balanced solution
      */
-    public static void partitionBenchmarkFM(Benchmark benchmark) {
+    public static void partitionBenchmarkFM(Benchmark benchmark, BitSet solution, int solutionCost) {
         Block[] blocks = benchmark.getBlocks();
         Connection[] connections = benchmark.getConnections();
         int numBlocks = benchmark.getNumBlocks();
@@ -180,10 +209,6 @@ public class App extends Application {
                             .max()
                             .orElse(-1);
 
-        // Initialize solution
-        BitSet solution = new BitSet(numBlocks);
-        solution.set(0, numBlocks / NUM_PARTITIONS);
-        int solutionCost = computeSolutionCost(blocks, connections, solution);
         BitSet bestSolution = (BitSet) solution.clone();
         int bestSolutionCost = solutionCost;
 
