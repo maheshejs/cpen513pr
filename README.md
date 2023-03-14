@@ -22,7 +22,7 @@ cd cpen513pr
 ### Testing
 
 ```shell
-./gradlew clean test
+./gradlew clean test --tests ass3.AppTest
 ```
 
 ## Source Code

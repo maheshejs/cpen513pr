@@ -108,7 +108,7 @@ public class App extends Application {
         BitSet solution = benchmark.getSolution();
         int solutionCost = benchmark.getSolutionCost();
         if (useFM) {
-            partitionBenchmarkFM(benchmark, solution, solutionCost);
+            partitionBenchmarkFM(benchmark, solution, solutionCost, NUM_FM_PASSES);
             // FM solution
             solution = benchmark.getSolution();
             solutionCost = benchmark.getSolutionCost();
@@ -199,7 +199,7 @@ public class App extends Application {
      * @param solution the initial balanced solution of the benchmark
      * @param solutionCost the cost of the initial balanced solution
      */
-    public static void partitionBenchmarkFM(Benchmark benchmark, BitSet solution, int solutionCost) {
+    public static void partitionBenchmarkFM(Benchmark benchmark, BitSet solution, int solutionCost, int numPasses) {
         Block[] blocks = benchmark.getBlocks();
         Connection[] connections = benchmark.getConnections();
         int numBlocks = benchmark.getNumBlocks();
@@ -212,7 +212,7 @@ public class App extends Application {
         BitSet bestSolution = (BitSet) solution.clone();
         int bestSolutionCost = solutionCost;
 
-        for (int pass = 0; pass < NUM_FM_PASSES; ++pass) {
+        for (int pass = 0; pass < numPasses; ++pass) {
             // Initialize gains
             BucketArray bucketArrays[] = new BucketArray[NUM_PARTITIONS];
             for (int partitionIndex = 0; partitionIndex < NUM_PARTITIONS; ++partitionIndex)
