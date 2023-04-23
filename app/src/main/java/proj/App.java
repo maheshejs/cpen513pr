@@ -1,12 +1,10 @@
 package proj;
 
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.Deque;
 import java.util.ArrayDeque;
 import java.util.Set;
@@ -14,129 +12,56 @@ import java.util.HashSet;
 import java.util.BitSet;
 import java.util.Random;
 import java.util.Comparator;
-
-import javafx.util.Pair;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static proj.Constants.*;
+import static proj.Utils.*;
 
-import javafx.application.Application;
-import javafx.geometry.Insets;
+import javafx.util.Pair;
 import javafx.geometry.Point2D;
-import javafx.collections.FXCollections;
-import javafx.scene.Group;
-import javafx.scene.Scene;
-import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Label;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
-import javafx.scene.shape.Line;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
-import javafx.scene.text.Text;
-import javafx.stage.Stage;
 
-public class App extends Application {
+public class App {
+    private static final Random random = new Random(); 
     private static List<List<Integer>> partitions = new ArrayList<>();
 
-    @Override
-    public void start(Stage stage) {
-        /////////////////////////////////////////////////////////////////////
-        /////////////////////// GRAPHICS - SETUP START //////////////////////
-        /////////////////////////////////////////////////////////////////////
-        Group group = new Group();
-
-        Canvas canvas = new Canvas(CANVAS_WIDTH, CANVAS_HEIGHT);
-        GraphicsContext gc = canvas.getGraphicsContext2D();
-        gc.setFill(Color.GRAY);
-        gc.fillRect(CANVAS_WIDTH / 2 - 2.5, 0, 5, CANVAS_HEIGHT);
-        gc.setFill(Color.WHITE);
-        gc.setStroke(Color.GRAY);
-        gc.setLineWidth(5);
-        gc.strokeRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-        group.getChildren().add(canvas);
-
-        Label label = new Label("Benchmark: ");
-        label.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-
-        ComboBox<String> cBox = new ComboBox<>(FXCollections.observableArrayList(BENCHMARK_FILES));
-        cBox.setValue("cm162a");
-        cBox.setVisibleRowCount(3);
-
-        HBox hBox = new HBox();
-        hBox.getChildren().addAll(label, cBox);
-
-        Button button = new Button("Partition");
-        button.setOnAction(e -> {
-            group.getChildren().clear();
-            group.getChildren().add(canvas);
-            String benchmarkFile = cBox.getValue() + ".txt";
-            Benchmark benchmark = new Benchmark(benchmarkFile);
-            partitionBenchmark(benchmark, false, NUM_RECURSIONS);
-            printBenchmarkSolution(benchmark);
-            drawBenchmarkSolution(benchmark, group);
-        });
-
-        VBox vBox = new VBox();
-        vBox.setSpacing(10);
-        vBox.setPadding(new Insets(25, 25, 25, 25));
-        vBox.getChildren().addAll(hBox, group, button);
-
-        Scene scene = new Scene(vBox);
-        stage.setScene(scene);
-        stage.setTitle("Partitioning");
-        stage.show();
-        /////////////////////////////////////////////////////////////////////
-        /////////////////////// GRAPHICS - SETUP END ////////////////////////
-        /////////////////////////////////////////////////////////////////////
-    }
-
     public static void main(String[] args) {
-        //Application.launch(args);
         String benchmarkFile = "cm162a.txt";
-        Benchmark benchmark = new Benchmark(benchmarkFile);
-        partitionBenchmark(benchmark, false, NUM_RECURSIONS);
+        Benchmark benchmark = new Benchmark(benchmarkFile, false);
+        partitionBenchmark(benchmark, false, 0);
 
         for (List<Integer> partition : partitions)
             System.out.println(partition);
     }
+    
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////    PARTITIONING   //////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
 
     /**
-     * Partitions a benchmark using a Branch and Bound algorithm
-     * @param benchmark the benchmark to partition
-     * @param useFM whether to use FM algorithm to initialize the solution
      */
-    public static void partitionBenchmark(Benchmark benchmark, boolean useFM, int recursion) {
+    public static void partitionBenchmark(Benchmark benchmark, boolean useFM, int recursionDepth) {
         // Trivial solution
         partitionBenchmarkTriv(benchmark);
-        BitSet solution = benchmark.getSolution();
-        int solutionCost = benchmark.getSolutionCost();
+        BitSet solutionTriv = benchmark.getPartitionSolution();
+        int solutionCostTriv = benchmark.getPartitionSolutionCost();
 
         if (useFM)
-            partitionBenchmarkFM(benchmark, solution, solutionCost, NUM_FM_PASSES);
+            partitionBenchmarkFM(benchmark, solutionTriv, solutionCostTriv, NUM_FM_PASSES);
         else
-            partitionBenchmarkBB(benchmark, solution, solutionCost);
+            partitionBenchmarkBB(benchmark, solutionTriv, solutionCostTriv);
 
-        if (recursion != 0)
-        {
-            Benchmark leftChildBenchmark = benchmark.getChildBenchmark(true);
-            Benchmark rightChildBenchmark = benchmark.getChildBenchmark(false);
-            partitionBenchmark(leftChildBenchmark, useFM, recursion - 1);
-            partitionBenchmark(rightChildBenchmark, useFM, recursion - 1);
-        }
-        else
-        {
-            int[] absoluteBlockIndexes = benchmark.getAbsoluteBlockIndexes();
-            for (int p = 0; p < 2; ++p) {
-                solution.flip(0, benchmark.getNumBlocks());
-                partitions.add(solution.stream() 
-                                       .map(i -> absoluteBlockIndexes[i])
-                                       .boxed()
-                                       .toList());
+        BitSet solution = benchmark.getPartitionSolution();
+        for (int i = 0; i < NUM_PARTITIONS; ++i) {
+            solution.flip(0, benchmark.getNumBlocks());
+            List<Integer> blockIndexes = solution.stream().boxed().toList();
+            if (recursionDepth != MAX_RECURSION_DEPTH) {
+                partitionBenchmark(benchmark.getSubBenchmark(blockIndexes, 0, 0), useFM, recursionDepth + 1);
+            }
+            else {
+                partitions.add(blockIndexes.stream()
+                                           .map(blockIndex -> benchmark.getAbsoluteBlockIndexes()[blockIndex])
+                                           .toList());
             }
         }
     }
@@ -154,8 +79,8 @@ public class App extends Application {
         solution.set(0, numBlocks / NUM_PARTITIONS);
         int solutionCost = computeSolutionCost(blocks, connections, solution);
 
-        benchmark.setSolution(solution);
-        benchmark.setSolutionCost(solutionCost);
+        benchmark.setPartitionSolution(solution);
+        benchmark.setPartitionSolutionCost(solutionCost);
     }
 
     /**
@@ -212,8 +137,8 @@ public class App extends Application {
                 }
             }
         }
-        benchmark.setSolution(solution);
-        benchmark.setSolutionCost(solutionCost);
+        benchmark.setPartitionSolution(solution);
+        benchmark.setPartitionSolutionCost(solutionCost);
     }
 
     /**
@@ -278,8 +203,8 @@ public class App extends Application {
             solution = (BitSet) bestSolution.clone();
             solutionCost = bestSolutionCost;
         }
-        benchmark.setSolution(solution);
-        benchmark.setSolutionCost(solutionCost);
+        benchmark.setPartitionSolution(solution);
+        benchmark.setPartitionSolutionCost(solutionCost);
     }
 
     /**
@@ -425,74 +350,111 @@ public class App extends Application {
         }
     }
 
-    /**
-     * Prints the benchmark solution
-     * @param benchmark the benchmark to print the solution for
-     */
-    public static void printBenchmarkSolution(Benchmark benchmark) {
-        BitSet solution = benchmark.getSolution();
-        int solutionCost = benchmark.getSolutionCost();
-        int numBlocks = benchmark.getNumBlocks();
-        int numRightBlocks = solution.cardinality();
-        int numLeftBlocks = numBlocks - numRightBlocks;
-        System.out.printf("Solution cost : %d\n", solutionCost);
-        System.out.printf("Solution : Right blocks %s\n", solution.toString());
-        System.out.printf("L = %d, R = %d\n", numLeftBlocks, numRightBlocks);
-    }
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////     PLACEMENT     //////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-    /**
-     * Draws the benchmark solution
-     * @param benchmark the benchmark
-     * @param group the container to draw the solution in
-     */
-    public static void drawBenchmarkSolution(Benchmark benchmark, Group group) {
+    public static void placeBenchmark(Benchmark benchmark) {
+        Block[]      blocks      = benchmark.getBlocks();
         Connection[] connections = benchmark.getConnections();
-        int numBlocks = benchmark.getNumBlocks();
-        int numConnections = benchmark.getNumConnections();
-        BitSet solution = benchmark.getSolution();
-
-        Random random = new Random();
-        Map<Integer, Point2D> placements = new HashMap<>();
-        for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
-            Point2D loc = solution.get(blockIndex) ? new Point2D(random.nextDouble(CANVAS_WIDTH / 2 + CANVAS_PADDING, CANVAS_WIDTH - 2 * CANVAS_PADDING), 
-                                                                 random.nextDouble(CANVAS_PADDING, CANVAS_HEIGHT - CANVAS_PADDING)) 
-                                                   : new Point2D(random.nextDouble(2 * CANVAS_PADDING, CANVAS_WIDTH / 2 - CANVAS_PADDING),
-                                                                 random.nextDouble(CANVAS_PADDING, CANVAS_HEIGHT - CANVAS_PADDING));
-            placements.put(blockIndex, loc);
+        Point2D[]    locs        = benchmark.getLocs();
+        
+        // Set simulated annealing parameters
+        final int    ANNEALING_MOVES_PER_TEMPERATURE = (int) (10 * Math.pow(blocks.length, 4.0/3.0));
+        final double ANNEALING_COOLING_RATE          = 0.95;
+        
+        // Initialize solution
+        int[] solution = new int[locs.length];
+        double cost = initializeBlockPlacements(solution, blocks, connections, locs, random);
+        int[] bestSolution = solution;
+        double bestCost = cost;
+        
+        // Initialize tabu list, annealing temperature and failure counter
+        double[] costs = new double[blocks.length];
+        for (int n = 0; n < blocks.length; ++n){
+            Neighbor neighbor = new Neighbor(solution, blocks, connections, locs, random);
+            costs[n] = cost + neighbor.getMoveCost();
         }
+        double temperature = 20 * calculateStandardDeviation(costs);
 
-        for (int connectionIndex = 0; connectionIndex < numConnections; ++connectionIndex) {
-            String color = COLORS[connectionIndex % COLORS.length];
-            Iterator<Integer> iterator = connections[connectionIndex].getBlockIndexes().iterator();
-            Point2D source = placements.get(iterator.next());
-            Circle sourcePin = new Circle(source.getX(), source.getY(), PIN_RADIUS);
-            sourcePin.setStyle("-fx-fill: " + color + ";");
-            while (iterator.hasNext()) {
-                Point2D sink = placements.get(iterator.next());
-                Circle sinkPin = new Circle(sink.getX(), sink.getY(), PIN_RADIUS);
-                sinkPin.setStyle("-fx-fill: " + color + ";");
-                Line line = new Line(source.getX(), source.getY(), sink.getX(), sink.getY());
-                line.setStyle("-fx-stroke: " + color + "; -fx-stroke-width: 2.5;");
-                group.getChildren().addAll(line, sinkPin);
+        int iteration = 0;
+        boolean isDone = false;
+        while (!isDone) {
+            for (int move = 0; move < ANNEALING_MOVES_PER_TEMPERATURE; ++move, ++iteration) {
+                //System.out.printf("ANNEALING | Cost = %.1f | Iteration = %d | Temperature = %.6f\n", cost, iteration, temperature);
+                // Generate random neighbor
+                Neighbor neighbor = new Neighbor(solution, blocks, connections, locs, random);
+                
+                if (random.nextDouble() < Math.exp(- neighbor.getMoveCost() / temperature)) {
+                    swapBlockPlacements(solution, blocks, connections, locs, neighbor.getFirstLocIndex(), neighbor.getSecondLocIndex());
+                    cost += neighbor.getMoveCost();
+                    // Checkpoint solution if improved
+                    if (cost < bestCost) {
+                        bestCost = cost;
+                        bestSolution = solution;
+                        //System.out.println("ANNEALING : " + bestCost + " | " + temperature + " | " + iteration);
+                    }
+                }
             }
-            group.getChildren().add(sourcePin);
+            // Update temperature
+            temperature *= ANNEALING_COOLING_RATE;
+
+            // Check if done
+            if (temperature < (0.001 * cost / connections.length))
+                isDone = true;
+        }
+    }
+    
+    /**
+     * Initialize block placements
+     * @param solution the solution array
+     * @param blocks blocks
+     * @param connections connections
+     * @param locs locations
+     * @param random the random number generator
+     * @return the cost of the solution
+     */
+    public static double initializeBlockPlacements (int[] solution, Block[] blocks, Connection[] connections, Point2D[] locs, Random random) {
+        List<Integer> blockIndexes = IntStream.range(0, locs.length).boxed().collect(Collectors.toList());
+        // Shuffle block indexes or not if random is null for testing (deterministic behavior)
+        if (random != null)
+            Collections.shuffle(blockIndexes, random);
+        IntStream.range(0, locs.length).forEach(e -> solution[e] = blockIndexes.get(e));
+
+        Point2D defaultLoc = new Point2D(0, 0);
+        for (int locIndex = 0; locIndex < locs.length; ++locIndex) {
+            Point2D loc = locs[locIndex];
+            int blockIndex = solution[locIndex];
+            if (blockIndex < blocks.length)
+                for (int connectionIndex : blocks[blockIndex].getConnectionIndexes())
+                    connections[connectionIndex].moveBlockPlacement(blockIndex, defaultLoc, loc);
         }
 
-        for (int blockIndex = 0; blockIndex < numBlocks; ++blockIndex) {
-            Text text = new Text(placements.get(blockIndex).getX() + 5, 
-                                 placements.get(blockIndex).getY() + 5, 
-                                 String.valueOf(blockIndex));
-            text.setStyle("-fx-font-size: 12px;");
-            group.getChildren().add(text);
-        }
+        return Arrays.stream(connections).mapToDouble(e -> e.getCost()).sum();
     }
 
     /**
-     * Converts a boolean to an integer
-     * @param b the boolean to convert
-     * @return 1 if b is true, 0 otherwise
+     * Swap block placements at given locations.
+     * @param solution the solution array.
+     * @param firstLocIndex the index of the first location.
+     * @param secondLocIndex the index of the second location.
      */
-    public static int boolToInt(boolean b) { 
-        return b ? 1 : 0;
+    public static void swapBlockPlacements (int[] solution, Block[] blocks, Connection[] connections, Point2D[] locs, int firstLocIndex, int secondLocIndex) {
+        int firstBlockIndex  = solution[firstLocIndex];
+        int secondBlockIndex = solution[secondLocIndex];
+        Point2D firstLoc  = locs[firstLocIndex];
+        Point2D secondLoc = locs[secondLocIndex];
+        
+        if (firstBlockIndex < blocks.length) {
+            for (int connectionIndex : blocks[firstBlockIndex].getConnectionIndexes()) {
+                connections[connectionIndex].moveBlockPlacement(firstBlockIndex, firstLoc, secondLoc);
+            }
+        }
+        if (secondBlockIndex < blocks.length) {
+            for (int connectionIndex : blocks[secondBlockIndex].getConnectionIndexes()) {
+                connections[connectionIndex].moveBlockPlacement(secondBlockIndex, secondLoc, firstLoc);
+            }
+        }
+        swap(solution, firstLocIndex, secondLocIndex);
     }
 }

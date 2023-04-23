@@ -2,9 +2,9 @@ package proj;
 
 public class Constants{
     private Constants () {}
+    static final int MAX_RECURSION_DEPTH = 1;
     static final int NUM_PARTITIONS = 2;
     static final int NUM_FM_PASSES  = 10;
-    static final int NUM_RECURSIONS = 2;
     static final int CANVAS_WIDTH   = 640;
     static final int CANVAS_HEIGHT  = 480;
     static final int CANVAS_PADDING = 30;

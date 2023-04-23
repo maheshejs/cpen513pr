@@ -1,37 +1,50 @@
 package proj;
 
+import java.util.BitSet;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.stream.IntStream;
 import java.util.Scanner;
-import java.util.BitSet;
 import java.io.File;
 import java.io.FileNotFoundException;
 
+import javafx.geometry.Point2D;
+
 public class Benchmark {
+    private boolean useRowSpacing;
     private int numBlocks;
     private int numConnections;
+    private int numRows;
+    private int numCols;
+    private int numLocs;
     private Block[] blocks;
     private Connection[] connections;
-    private BitSet solution;
-    private int solutionCost;
+    private Point2D[] locs;
     private int[] absoluteBlockIndexes;
+    private BitSet partitionSolution;
+    private int partitionSolutionCost;
 
-    public Benchmark (Block[] blocks, Connection[] connections, int[] absoluteBlockIndexes) {
-        this.numBlocks = blocks.length;
-        this.numConnections = connections.length;
-        this.blocks = blocks;
-        this.connections = connections;
-        this.solution = new BitSet(numBlocks);
-        this.solutionCost = -1;
-        this.absoluteBlockIndexes = absoluteBlockIndexes;
+    public Benchmark () {
+        this.useRowSpacing = false;
+        this.numBlocks = 0;
+        this.numConnections = 0;
+        this.numRows = 0;
+        this.numCols = 0;
+        this.numLocs = 0;
+        this.blocks = new Block[0];
+        this.connections = new Connection[0];
+        this.locs = new Point2D[0];
+        this.absoluteBlockIndexes = new int[0];
+        this.partitionSolution = new BitSet(0);
+        this.partitionSolutionCost = -1;
     }
 
     /**
      * Creates a new benchmark
      * @param benchmarkFile the benchmark file
+     * @param useRowSpacing whether to use row spacing
      */
-    public Benchmark (String benchmarkFile) {
+    public Benchmark (String benchmarkFile, boolean useRowSpacing) {
+        this.useRowSpacing = useRowSpacing;
         parseBenchmarkFile(benchmarkFile);
     }
 
@@ -40,9 +53,12 @@ public class Benchmark {
      * @param benchmarkFile the benchmark file
      */
     private void parseBenchmarkFile (String benchmarkFile) {
-        try (Scanner scanner = new Scanner(new File("data/benchmarks/ass3/" + benchmarkFile))) {
+        try (Scanner scanner = new Scanner(new File("data/benchmarks/ass2/" + benchmarkFile))) {
             numBlocks = scanner.nextInt();
             numConnections = scanner.nextInt();
+            numRows = scanner.nextInt();
+            numCols = scanner.nextInt();
+            numLocs = numRows * numCols;
 
             blocks = new Block[numBlocks];
             absoluteBlockIndexes = new int[numBlocks];
@@ -59,11 +75,14 @@ public class Benchmark {
                 while (numBlocksConnection-- > 0) {
                     int blockIndex = scanner.nextInt();
                     blocks[blockIndex].addConnectionIndex(connectionIndex);
-                    connections[connectionIndex].addBlockIndex(blockIndex);
+                    // Add block placement at location (0, 0) for now
+                    connections[connectionIndex].addBlockPlacement(blockIndex, new Point2D(0, 0));
                 }
             }
-            solution = new BitSet(numBlocks);
-            solutionCost = -1;
+
+            locs = new Point2D[numLocs];
+            for (int locIndex = 0; locIndex < numLocs; ++locIndex)
+                locs[locIndex] = getLoc(locIndex);
         } catch (FileNotFoundException e) {
             System.err.println("Unable to load benchmark file: " + benchmarkFile);
             System.exit(1);
@@ -71,19 +90,36 @@ public class Benchmark {
     }
     
     /**
+     * Returns the location at the given index
+     * @param locIndex the location index
+     * @return the location at the given index
+     */
+    public Point2D getLoc (int locIndex) {
+        return new Point2D(locIndex % numCols, (locIndex / numCols) * (useRowSpacing ? 2 : 1));
+    }
+
+    /**
      * Returns blocks
      * @return blocks
      */
     public Block[] getBlocks () {
         return blocks;
     }
-    
+
     /**
      * Returns connections
      * @return connections
      */
     public Connection[] getConnections () {
         return connections;
+    }
+
+    /**
+     * Returns locations
+     * @return locations
+     */
+    public Point2D[] getLocs () {
+        return locs;
     }
 
     /**
@@ -103,73 +139,111 @@ public class Benchmark {
     }
 
     /**
-     * Returns the solution
-     * @return the solution
+     * Returns the number of rows
+     * @return the number of rows
      */
-    public BitSet getSolution () {
-        return solution;
+    public int getNumRows () {
+        return numRows;
     }
 
     /**
-     * Sets the solution
-     * @param solution the solution
+     * Returns the number of columns
+     * @return the number of columns
      */
-    public void setSolution (BitSet solution) {
-        this.solution = solution;
+    public int getNumCols () {
+        return numCols;
+    }
+    
+    /**
+     * Returns the number of locations
+     * @return the number of locations
+     */
+    public int getNumLocs() {
+        return numLocs;
+    }
+    
+    public int[] getAbsoluteBlockIndexes () {
+        return absoluteBlockIndexes;
+    }
+    
+    /**
+     * Returns partitioning solution
+     * @return partitioning solution
+     */
+    public BitSet getPartitionSolution () {
+        return partitionSolution;
     }
 
     /**
-     * Returns the solution cost
-     * @return the solution cost
+     * Sets the partitioning solution
+     * @param partitionSolution partitioning solution
      */
-    public int getSolutionCost () {
-        return solutionCost;
+    public void setPartitionSolution (BitSet partitionSolution) {
+        this.partitionSolution = partitionSolution;
     }
 
     /**
-     * Sets the solution cost
-     * @param solutionCost the solution cost
+     * Returns partitioning solution cost
+     * @return partitioning solution cost
      */
-    public void setSolutionCost (int solutionCost) {
-        this.solutionCost = solutionCost;
+    public int getPartitionSolutionCost () {
+        return partitionSolutionCost;
     }
 
-    public Benchmark getChildBenchmark (boolean isLeft) {
-        BitSet solution = (BitSet) this.solution.clone();
-        if (isLeft) solution.flip(0, numBlocks);
-        List<Integer> blockIndexes = solution.stream()
-                                             .boxed()
-                                             .toList();
-        List<Block> newBlocks = new ArrayList<>();
-        List<Connection> newConnections = new ArrayList<>();
-        IntStream.range(0, blockIndexes.size())
-                 .forEach(i -> newBlocks.add(new Block()));
-            
-        for (Connection connection : connections)
+    /**
+     * Sets partitioning solution cost
+     * @param partitionSolutionCost the partitionSolution cost
+     */
+    public void setPartitionSolutionCost (int partitionSolutionCost) {
+        this.partitionSolutionCost = partitionSolutionCost;
+    }
+
+    public Benchmark getSubBenchmark (List<Integer> blockIndexes, int numRows, int numCols) {
+        List<Block> blocks = new ArrayList<>();
+        List<Connection> connections = new ArrayList<>();
+        List<Point2D> locs = new ArrayList<>();
+        List<Integer> absoluteBlockIndexes = new ArrayList<>();
+        for (int blockIndex : blockIndexes)
         {
-            List<Integer> newBlockIndexes = new ArrayList<>(connection.getBlockIndexes());
-            newBlockIndexes.retainAll(blockIndexes);
-            newBlockIndexes.replaceAll(blockIndex -> blockIndexes.indexOf(blockIndex));
-            if (!newBlockIndexes.isEmpty())
+            blocks.add(new Block());
+            absoluteBlockIndexes.add(this.absoluteBlockIndexes[blockIndex]);
+        }
+            
+        for (Connection connection : this.connections)
+        {
+            List<Integer> blockConnectionIndexes = new ArrayList<>(connection.getBlockIndexes());
+            blockConnectionIndexes.retainAll(blockIndexes);
+            blockConnectionIndexes.replaceAll(blockIndex -> blockIndexes.indexOf(blockIndex));
+            if (!blockConnectionIndexes.isEmpty())
             {
-                newBlockIndexes.forEach(blockIndex -> newBlocks.get(blockIndex)
-                                                               .addConnectionIndex(newConnections.size()));
-                newConnections.add(new Connection(newBlockIndexes));
+                int connectionIndex = connections.size();
+                connections.add(new Connection());
+                for (int blockIndex : blockConnectionIndexes) {
+                    blocks.get(blockIndex).addConnectionIndex(connectionIndex);
+                    connections.get(connectionIndex).addBlockPlacement(blockIndex, new Point2D(0, 0));
+                }
+                ++connectionIndex;
             }
         }
 
-        int[] newAbsoluteBlockIndexes = new int[blockIndexes.size()];
-        for (int blockIndex = 0; blockIndex < newAbsoluteBlockIndexes.length; ++blockIndex)
-        {
-            newAbsoluteBlockIndexes[blockIndex] = absoluteBlockIndexes[blockIndexes.get(blockIndex)];
-        }
-        
-        return new Benchmark(newBlocks.toArray(new Block[0]), 
-                             newConnections.toArray(new Connection[0]),
-                             newAbsoluteBlockIndexes);
-    }
-   
-    public int[] getAbsoluteBlockIndexes () {
-        return absoluteBlockIndexes;
+        numLocs = numRows * numCols;
+        for (int locIndex = 0; locIndex < numLocs; ++locIndex)
+            locs.add(getLoc(locIndex));
+
+        Benchmark subBenchmark = new Benchmark();
+        subBenchmark.useRowSpacing = this.useRowSpacing;
+        subBenchmark.blocks = blocks.toArray(new Block[0]);
+        subBenchmark.connections = connections.toArray(new Connection[0]);
+        subBenchmark.locs = locs.toArray(new Point2D[0]);
+        subBenchmark.absoluteBlockIndexes = absoluteBlockIndexes.stream().mapToInt(e -> e).toArray();
+        subBenchmark.numBlocks = blocks.size();
+        subBenchmark.numConnections = connections.size();
+        subBenchmark.numLocs = locs.size();
+        subBenchmark.numRows = numRows;
+        subBenchmark.numCols = numCols;
+        subBenchmark.partitionSolution = new BitSet(subBenchmark.numBlocks);
+        subBenchmark.partitionSolutionCost = -1;
+
+        return subBenchmark;
     }
 }
