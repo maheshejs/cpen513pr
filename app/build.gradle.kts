@@ -22,7 +22,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("ass3.App")
+    mainClass.set("proj.App")
 }
 
 tasks.named<Test>("test") {

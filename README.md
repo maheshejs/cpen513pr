@@ -1,6 +1,6 @@
 # Partitioning
 
-This project implements a branch-and-bound based and a Fiduccia-Mattheyses bi-partitioning algorithm.
+This project implements a partition-based placement algorithm.
 
 ## Getting Started
 
@@ -22,7 +22,7 @@ cd cpen513pr
 ### Testing
 
 ```shell
-./gradlew clean test --tests ass3.AppTest
+./gradlew clean test --tests proj.AppTest
 ```
 
 ## Source Code
@@ -33,18 +33,18 @@ The source code files for the project are located at :
       └── src
           └── main
               └── java
-                  └── ass3
+                  └── proj
           └── test
               └── java
-                  └── ass3
+                  └── proj
       └── data
           └── benchmarks
-              └── ass3
+              └── ass2
 ```
 
 ## Graphics
 
-The project includes benchmark graphics in the `graphics/ass3` folder.
+The project includes benchmark graphics in the `graphics/` folder.
 
 ## Authors
 
