@@ -28,13 +28,16 @@ public class App {
 
     public static void main(String[] args) {
         // Check command line arguments
-        if (args.length != 2) {
-            System.err.println("Usage: args=\"<benchmarkFile> <useRowSpacing>\"");
+        if (args.length != 4) {
+            System.err.println("Usage: args=\"<benchmarkFile> <useRowSpacing> <useFM> <recursionDepth>\"");
             System.exit(1);
         }
+        String benchmarkFile = args[0];
+        boolean useRowSpacing = Boolean.parseBoolean(args[1]);
+        boolean useFM = Boolean.parseBoolean(args[2]);
+        int recursionDepth = Integer.parseInt(args[3]);
 
-        Benchmark benchmark = new Benchmark(args[0], Boolean.parseBoolean(args[1]));
-        boolean useRowSpacing    = benchmark.getUseRowSpacing();
+        Benchmark benchmark = new Benchmark(benchmarkFile, useRowSpacing);
         Block[]      blocks      = benchmark.getBlocks();
         Connection[] connections = benchmark.getConnections();
         Point2D[]    locs        = benchmark.getLocs();
@@ -42,16 +45,16 @@ public class App {
         int numLocs              = benchmark.getNumLocs();
         int numRows              = benchmark.getNumRows();
         int numCols              = benchmark.getNumCols();
-        int numSubRows = (int) Math.pow(2, (MAX_RECURSION_DEPTH + 1) / 2);
-        int numSubCols = (int) Math.pow(2, (MAX_RECURSION_DEPTH + 1) - (MAX_RECURSION_DEPTH + 1) / 2);
-        int numPartitions = (int) Math.pow(2, MAX_RECURSION_DEPTH + 1);
+        int numSubRows = (int) Math.pow(2, (recursionDepth + 1) / 2);
+        int numSubCols = (int) Math.pow(2, (recursionDepth + 1) - (recursionDepth + 1) / 2);
+        int numPartitions = (int) Math.pow(2, recursionDepth + 1);
 
         ////////////////////////////
         // RECURSIVE PARTITIONING //
         ////////////////////////////
 
-        partitionBenchmark(benchmark, true, 0);
-
+        partitionBenchmark(benchmark, useFM, recursionDepth);
+        
         List<Pair<Point2D, Point2D>> pairs = divideRectangle(numCols, numRows, numSubCols, numSubRows);
 
         ////////////////////////
@@ -59,12 +62,27 @@ public class App {
         ////////////////////////
 
         for (int i = 0; i < numPartitions; ++i) {
-            List<Integer> partition = partitions.get(i);
-            Point2D dimension = pairs.get(i).getValue();
-            Benchmark subBenchmark = benchmark.getSubBenchmark(partition, (int) dimension.getY(), (int) dimension.getX());
-            placeBenchmark(subBenchmark);
+            places.add(new ArrayList<>());
         }
+        IntStream.range(0, numPartitions)
+                 .parallel()
+                 .forEach(i -> {
+                                    List<Integer> partition = partitions.get(i);
+                                    Point2D dimension = pairs.get(i).getValue();
+                                    Benchmark subBenchmark = benchmark.getSubBenchmark(partition, 
+                                                                                      (int) dimension.getY(), 
+                                                                                      (int) dimension.getX());
+                                    /*
+                                    System.out.printf("%d - (%d, %d)\n", subBenchmark.getNumBlocks(), 
+                                                                         subBenchmark.getNumRows(), 
+                                                                         subBenchmark.getNumCols());
+                                    if (subBenchmark.getNumBlocks() > subBenchmark.getNumRows() * subBenchmark.getNumCols())
+                                        System.out.println("ISSUE");
+                                    */
+                                    placeBenchmark(subBenchmark, i);
+                                });
 
+        
         List<List<Point2D>> absolutePlaces = new ArrayList<>();
         for (int i = 0; i < numPartitions; ++i) {
             Point2D offset = pairs.get(i).getKey();
@@ -75,7 +93,13 @@ public class App {
                                                 .toList();
             absolutePlaces.add(absolutePlace);
         }
-
+        
+        /*
+        for (List<Point2D> place : absolutePlaces) {
+            System.out.println(place);
+        }
+        */
+    
         //////////////////////
         // MERGED PLACEMENT //
         //////////////////////
@@ -85,6 +109,7 @@ public class App {
         }
 
         for (int i = 0; i < numPartitions; ++i) {
+            Point2D dimension = pairs.get(i).getValue();
             List<Integer> partition = partitions.get(i);
             for (int j = 0; j < partition.size(); ++j)
             {
@@ -105,7 +130,7 @@ public class App {
         }
         double solutionCost = Arrays.stream(connections).mapToDouble(e -> e.getCost()).sum();
 
-        System.out.println(Arrays.toString(solution));
+        //System.out.println(Arrays.toString(solution));
         System.out.println(solutionCost);
     }
     
@@ -126,21 +151,20 @@ public class App {
         else
             partitionBenchmarkBB(benchmark, solutionTriv, solutionCostTriv);
 
-        System.out.printf("Partitioning solution cost: %d\n", benchmark.getPartitionSolutionCost());
+        //System.out.printf("Partitioning solution cost: %d\n", benchmark.getPartitionSolutionCost());
         BitSet solution = benchmark.getPartitionSolution();
         for (int i = 0; i < NUM_PARTITIONS; ++i) {
             solution.flip(0, benchmark.getNumBlocks());
             List<Integer> blockIndexes = solution.stream().boxed().toList();
-            if (recursionDepth != MAX_RECURSION_DEPTH) {
+            if (recursionDepth != 0) {
                 Benchmark subBenchmark = benchmark.getSubBenchmark(blockIndexes, 0, 0);
-                partitionBenchmark(subBenchmark, useFM, recursionDepth + 1);
+                partitionBenchmark(subBenchmark, useFM, recursionDepth - 1);
             }
             else {
                 List<Integer> partition = blockIndexes.stream()
                                                       .map(blockIndex -> benchmark.getAbsoluteBlockIndexes()[blockIndex])
                                                       .toList();
                 partitions.add(partition);
-                //System.out.println(partition);
             }
         }
     }
@@ -433,13 +457,21 @@ public class App {
     //////////////////////////////////     PLACEMENT     //////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-    public static void placeBenchmark(Benchmark benchmark) {
+    public static void placeBenchmark(Benchmark benchmark, int ID) {
         Block[]      blocks      = benchmark.getBlocks();
         Connection[] connections = benchmark.getConnections();
         Point2D[]    locs        = benchmark.getLocs();
+        int          numBlocks   = benchmark.getNumBlocks();
+        int          numLocs     = benchmark.getNumLocs();
         int          numRows     = benchmark.getNumRows();
         int          numCols     = benchmark.getNumCols();
         boolean      useRowSpacing = benchmark.getUseRowSpacing();
+
+        if (numLocs != numRows * numCols) {
+            System.out.printf("Error - Number of locations (%d) does not match number of rows (%d) times number of columns (%d)\n",
+                              numLocs, numRows, numCols);
+            System.exit(1);
+        }
         
         // Set simulated annealing parameters
         final int    ANNEALING_MOVES_PER_TEMPERATURE = (int) (10 * Math.pow(blocks.length, 4.0/3.0));
@@ -463,7 +495,7 @@ public class App {
         boolean isDone = false;
         while (!isDone) {
             for (int move = 0; move < ANNEALING_MOVES_PER_TEMPERATURE; ++move, ++iteration) {
-                //System.out.printf("ANNEALING | Cost = %.1f | Iteration = %d | Temperature = %.6f\n", cost, iteration, temperature);
+                //System.out.printf("Cost = %.1f | Iteration = %d | Temperature = %.6f\n", cost, iteration, temperature);
                 // Generate random neighbor
                 Neighbor neighbor = new Neighbor(solution, blocks, connections, locs, random);
                 
@@ -482,18 +514,26 @@ public class App {
             temperature *= ANNEALING_COOLING_RATE;
 
             // Check if done
-            if (temperature < (0.001 * cost / connections.length))
+            if ((cost == 0) || (temperature < (0.001 * cost / connections.length)))
                 isDone = true;
         }
 
-        List<Point2D> place = Arrays.stream(bestSolution)
+        int[] solutionBlocks = new int[numBlocks];
+        for (int locIndex = 0; locIndex < numLocs; ++locIndex) {
+            int blockIndex = solution[locIndex];
+            if (blockIndex < numBlocks) {
+                solutionBlocks[blockIndex] = locIndex;
+            }
+        }
+
+        List<Point2D> place = Arrays.stream(solutionBlocks)
                                     .mapToObj(e -> getLoc(e, numRows, numCols, useRowSpacing))
                                     .toList();
-        places.add(place);
-
+        places.set(ID, place);
+        
         // Print final solution and cost
-        System.out.println(Arrays.toString(bestSolution));
-        System.out.println(bestCost);
+        //System.out.println(Arrays.toString(bestSolution));
+        //System.out.println(bestCost);
     }
     
     /**

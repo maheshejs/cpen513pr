@@ -55,7 +55,7 @@ public class Benchmark {
      * @param benchmarkFile the benchmark file
      */
     private void parseBenchmarkFile (String benchmarkFile) {
-        try (Scanner scanner = new Scanner(new File("data/benchmarks/ass2/" + benchmarkFile))) {
+        try (Scanner scanner = new Scanner(new File("data/benchmarks/ass2/" + benchmarkFile + ".txt"))) {
             numBlocks = scanner.nextInt();
             numConnections = scanner.nextInt();
             numRows = scanner.nextInt();
@@ -227,8 +227,7 @@ public class Benchmark {
             }
         }
 
-        numLocs = numRows * numCols;
-        for (int locIndex = 0; locIndex < numLocs; ++locIndex)
+        for (int locIndex = 0; locIndex < numRows * numCols; ++locIndex)
             locs.add(getLoc(locIndex, numRows, numCols, useRowSpacing));
 
         Benchmark subBenchmark = new Benchmark();
@@ -244,7 +243,7 @@ public class Benchmark {
         subBenchmark.numCols = numCols;
         subBenchmark.partitionSolution = new BitSet(subBenchmark.numBlocks);
         subBenchmark.partitionSolutionCost = -1;
-
+        
         return subBenchmark;
     }
 }
