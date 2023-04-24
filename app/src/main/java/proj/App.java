@@ -24,14 +24,89 @@ import javafx.geometry.Point2D;
 public class App {
     private static final Random random = new Random(); 
     private static List<List<Integer>> partitions = new ArrayList<>();
+    private static List<List<Point2D>> places = new ArrayList<>();
 
     public static void main(String[] args) {
-        String benchmarkFile = "cm162a.txt";
-        Benchmark benchmark = new Benchmark(benchmarkFile, false);
-        partitionBenchmark(benchmark, false, 0);
+        // Check command line arguments
+        if (args.length != 2) {
+            System.err.println("Usage: args=\"<benchmarkFile> <useRowSpacing>\"");
+            System.exit(1);
+        }
 
-        for (List<Integer> partition : partitions)
-            System.out.println(partition);
+        Benchmark benchmark = new Benchmark(args[0], Boolean.parseBoolean(args[1]));
+        boolean useRowSpacing    = benchmark.getUseRowSpacing();
+        Block[]      blocks      = benchmark.getBlocks();
+        Connection[] connections = benchmark.getConnections();
+        Point2D[]    locs        = benchmark.getLocs();
+        int numBlocks            = benchmark.getNumBlocks();
+        int numLocs              = benchmark.getNumLocs();
+        int numRows              = benchmark.getNumRows();
+        int numCols              = benchmark.getNumCols();
+        int numSubRows = (int) Math.pow(2, (MAX_RECURSION_DEPTH + 1) / 2);
+        int numSubCols = (int) Math.pow(2, (MAX_RECURSION_DEPTH + 1) - (MAX_RECURSION_DEPTH + 1) / 2);
+        int numPartitions = (int) Math.pow(2, MAX_RECURSION_DEPTH + 1);
+
+        ////////////////////////////
+        // RECURSIVE PARTITIONING //
+        ////////////////////////////
+
+        partitionBenchmark(benchmark, true, 0);
+
+        List<Pair<Point2D, Point2D>> pairs = divideRectangle(numCols, numRows, numSubCols, numSubRows);
+
+        ////////////////////////
+        // DETAILED PLACEMENT //
+        ////////////////////////
+
+        for (int i = 0; i < numPartitions; ++i) {
+            List<Integer> partition = partitions.get(i);
+            Point2D dimension = pairs.get(i).getValue();
+            Benchmark subBenchmark = benchmark.getSubBenchmark(partition, (int) dimension.getY(), (int) dimension.getX());
+            placeBenchmark(subBenchmark);
+        }
+
+        List<List<Point2D>> absolutePlaces = new ArrayList<>();
+        for (int i = 0; i < numPartitions; ++i) {
+            Point2D offset = pairs.get(i).getKey();
+            List<Point2D> absolutePlace = places.get(i)
+                                                .stream()
+                                                .map(e -> new Point2D(e.getX() + offset.getX(),
+                                                                      e.getY() + offset.getY() * (useRowSpacing ? 2 : 1)))
+                                                .toList();
+            absolutePlaces.add(absolutePlace);
+        }
+
+        //////////////////////
+        // MERGED PLACEMENT //
+        //////////////////////
+        int[] solution = new int[numLocs];
+        for (int i = 0; i < numLocs; ++i) {
+            solution[i] = numBlocks;
+        }
+
+        for (int i = 0; i < numPartitions; ++i) {
+            List<Integer> partition = partitions.get(i);
+            for (int j = 0; j < partition.size(); ++j)
+            {
+                double x = absolutePlaces.get(i).get(j).getX();
+                double y = absolutePlaces.get(i).get(j).getY() / (useRowSpacing ? 2 : 1);
+                int locIndex = (int) (y * numCols + x);
+                solution[locIndex] = partition.get(j); 
+            }
+        }
+
+        Point2D defaultLoc = new Point2D(0, 0);
+        for (int locIndex = 0; locIndex < locs.length; ++locIndex) {
+            Point2D loc = locs[locIndex];
+            int blockIndex = solution[locIndex];
+            if (blockIndex < blocks.length)
+                for (int connectionIndex : blocks[blockIndex].getConnectionIndexes())
+                    connections[connectionIndex].moveBlockPlacement(blockIndex, defaultLoc, loc);
+        }
+        double solutionCost = Arrays.stream(connections).mapToDouble(e -> e.getCost()).sum();
+
+        System.out.println(Arrays.toString(solution));
+        System.out.println(solutionCost);
     }
     
     ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -51,17 +126,21 @@ public class App {
         else
             partitionBenchmarkBB(benchmark, solutionTriv, solutionCostTriv);
 
+        System.out.printf("Partitioning solution cost: %d\n", benchmark.getPartitionSolutionCost());
         BitSet solution = benchmark.getPartitionSolution();
         for (int i = 0; i < NUM_PARTITIONS; ++i) {
             solution.flip(0, benchmark.getNumBlocks());
             List<Integer> blockIndexes = solution.stream().boxed().toList();
             if (recursionDepth != MAX_RECURSION_DEPTH) {
-                partitionBenchmark(benchmark.getSubBenchmark(blockIndexes, 0, 0), useFM, recursionDepth + 1);
+                Benchmark subBenchmark = benchmark.getSubBenchmark(blockIndexes, 0, 0);
+                partitionBenchmark(subBenchmark, useFM, recursionDepth + 1);
             }
             else {
-                partitions.add(blockIndexes.stream()
-                                           .map(blockIndex -> benchmark.getAbsoluteBlockIndexes()[blockIndex])
-                                           .toList());
+                List<Integer> partition = blockIndexes.stream()
+                                                      .map(blockIndex -> benchmark.getAbsoluteBlockIndexes()[blockIndex])
+                                                      .toList();
+                partitions.add(partition);
+                //System.out.println(partition);
             }
         }
     }
@@ -77,7 +156,7 @@ public class App {
 
         BitSet solution = new BitSet(numBlocks);
         solution.set(0, numBlocks / NUM_PARTITIONS);
-        int solutionCost = computeSolutionCost(blocks, connections, solution);
+        int solutionCost = computePartitionSolutionCost(blocks, connections, solution);
 
         benchmark.setPartitionSolution(solution);
         benchmark.setPartitionSolutionCost(solutionCost);
@@ -214,8 +293,8 @@ public class App {
      * @param solution solution
      * @return cost of the solution
      */
-    public static int computeSolutionCost (Block blocks[], Connection connections[],
-                                           BitSet solution) {
+    public static int computePartitionSolutionCost (Block blocks[], Connection connections[],
+                                                    BitSet solution) {
         int numBlocks = blocks.length;
         List<Set<Integer>> connectionsIndexes = new ArrayList<>();
         for (int partitionIndex = 0; partitionIndex < NUM_PARTITIONS; ++partitionIndex)
@@ -358,6 +437,9 @@ public class App {
         Block[]      blocks      = benchmark.getBlocks();
         Connection[] connections = benchmark.getConnections();
         Point2D[]    locs        = benchmark.getLocs();
+        int          numRows     = benchmark.getNumRows();
+        int          numCols     = benchmark.getNumCols();
+        boolean      useRowSpacing = benchmark.getUseRowSpacing();
         
         // Set simulated annealing parameters
         final int    ANNEALING_MOVES_PER_TEMPERATURE = (int) (10 * Math.pow(blocks.length, 4.0/3.0));
@@ -369,7 +451,7 @@ public class App {
         int[] bestSolution = solution;
         double bestCost = cost;
         
-        // Initialize tabu list, annealing temperature and failure counter
+        // Initialize annealing temperature and failure counter
         double[] costs = new double[blocks.length];
         for (int n = 0; n < blocks.length; ++n){
             Neighbor neighbor = new Neighbor(solution, blocks, connections, locs, random);
@@ -403,6 +485,15 @@ public class App {
             if (temperature < (0.001 * cost / connections.length))
                 isDone = true;
         }
+
+        List<Point2D> place = Arrays.stream(bestSolution)
+                                    .mapToObj(e -> getLoc(e, numRows, numCols, useRowSpacing))
+                                    .toList();
+        places.add(place);
+
+        // Print final solution and cost
+        System.out.println(Arrays.toString(bestSolution));
+        System.out.println(bestCost);
     }
     
     /**

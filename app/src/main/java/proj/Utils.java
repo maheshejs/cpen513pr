@@ -1,5 +1,11 @@
 package proj;
 
+import java.util.List;
+import java.util.ArrayList;
+
+import javafx.geometry.Point2D;
+import javafx.util.Pair;
+
 public class Utils {
     ///////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////// Utility functions //////////////////////////////////////////////
@@ -48,5 +54,43 @@ public class Utils {
         }
 
         return Math.sqrt(standardDeviation / length);
+    }
+    
+    /**
+     * Returns the location at the given index
+     * @param locIndex the location index
+     * @return the location at the given index
+     */
+    public static Point2D getLoc (int locIndex, int numRows, int numCols, boolean useRowSpacing) {
+        return new Point2D(locIndex % numCols, (locIndex / numCols) * (useRowSpacing ? 2 : 1));
+    }
+
+    public static List<Pair<Integer, Integer>> divideSegment (int length, int n) {
+        List<Pair<Integer, Integer>> result = new ArrayList<>();
+        int segmentLength = length / n;
+        int remainder = length % n;
+        int start = 0;
+        for (int i = 0; i < n; ++i) {
+            int end = start + segmentLength;
+            if (remainder > 0) {
+                ++end;
+                --remainder;
+            }
+            result.add(new Pair<>(start, end - start));
+            start = end;
+        }
+        return result;
+    }
+    
+    public static List<Pair<Point2D, Point2D>> divideRectangle (int width, int height, int nWidth, int nHeight) {
+        List<Pair<Integer, Integer>> heightPairs = divideSegment(height, nHeight);
+        List<Pair<Integer, Integer>> widthPairs = divideSegment(width, nWidth);
+
+        List<Pair<Point2D, Point2D>> result = new ArrayList<>();
+        for (Pair<Integer, Integer> widthPair : widthPairs)
+            for (Pair<Integer, Integer> heightPair : heightPairs)
+                result.add(new Pair<>(new Point2D(widthPair.getKey(), heightPair.getKey()), 
+                                      new Point2D(widthPair.getValue(), heightPair.getValue())));
+        return result;
     }
 }

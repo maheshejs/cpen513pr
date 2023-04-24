@@ -7,6 +7,8 @@ import java.util.Scanner;
 import java.io.File;
 import java.io.FileNotFoundException;
 
+import static proj.Utils.*;
+
 import javafx.geometry.Point2D;
 
 public class Benchmark {
@@ -82,7 +84,7 @@ public class Benchmark {
 
             locs = new Point2D[numLocs];
             for (int locIndex = 0; locIndex < numLocs; ++locIndex)
-                locs[locIndex] = getLoc(locIndex);
+                locs[locIndex] = getLoc(locIndex, numRows, numCols, useRowSpacing);
         } catch (FileNotFoundException e) {
             System.err.println("Unable to load benchmark file: " + benchmarkFile);
             System.exit(1);
@@ -90,12 +92,11 @@ public class Benchmark {
     }
     
     /**
-     * Returns the location at the given index
-     * @param locIndex the location index
-     * @return the location at the given index
+     * Returns whether to use row spacing
+     * @return whether to use row spacing
      */
-    public Point2D getLoc (int locIndex) {
-        return new Point2D(locIndex % numCols, (locIndex / numCols) * (useRowSpacing ? 2 : 1));
+    public boolean getUseRowSpacing () {
+        return useRowSpacing;
     }
 
     /**
@@ -228,7 +229,7 @@ public class Benchmark {
 
         numLocs = numRows * numCols;
         for (int locIndex = 0; locIndex < numLocs; ++locIndex)
-            locs.add(getLoc(locIndex));
+            locs.add(getLoc(locIndex, numRows, numCols, useRowSpacing));
 
         Benchmark subBenchmark = new Benchmark();
         subBenchmark.useRowSpacing = this.useRowSpacing;
