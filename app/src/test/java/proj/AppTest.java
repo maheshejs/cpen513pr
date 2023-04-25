@@ -2,6 +2,7 @@
 package proj;
 
 import java.util.List;
+import java.util.Set;
 import java.util.Random;
 
 import static proj.Utils.*;
@@ -31,9 +32,9 @@ class AppTest {
     @Test void testBlock () {
         assertEquals(benchmark.getNumBlocks(), 3);
         assertEquals(blocks.length, 3);
-        assertEquals(blocks[0].getConnectionIndexes(), List.of(0, 1));
-        assertEquals(blocks[1].getConnectionIndexes(), List.of(0, 2));
-        assertEquals(blocks[2].getConnectionIndexes(), List.of(0, 1, 2));
+        assertEquals(blocks[0].getConnectionIndexes(), Set.of(0, 1));
+        assertEquals(blocks[1].getConnectionIndexes(), Set.of(0, 2));
+        assertEquals(blocks[2].getConnectionIndexes(), Set.of(0, 1, 2));
     }
     
     @Test void testConnection () {
