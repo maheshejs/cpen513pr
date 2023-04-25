@@ -72,13 +72,6 @@ public class App {
                                     Benchmark subBenchmark = benchmark.getSubBenchmark(partition, 
                                                                                       (int) dimension.getY(), 
                                                                                       (int) dimension.getX());
-                                    /*
-                                    System.out.printf("%d - (%d, %d)\n", subBenchmark.getNumBlocks(), 
-                                                                         subBenchmark.getNumRows(), 
-                                                                         subBenchmark.getNumCols());
-                                    if (subBenchmark.getNumBlocks() > subBenchmark.getNumRows() * subBenchmark.getNumCols())
-                                        System.out.println("ISSUE");
-                                    */
                                     placeBenchmark(subBenchmark, i);
                                 });
 
@@ -94,12 +87,6 @@ public class App {
             absolutePlaces.add(absolutePlace);
         }
         
-        /*
-        for (List<Point2D> place : absolutePlaces) {
-            System.out.println(place);
-        }
-        */
-    
         //////////////////////
         // MERGED PLACEMENT //
         //////////////////////
@@ -130,7 +117,7 @@ public class App {
         }
         double solutionCost = Arrays.stream(connections).mapToDouble(e -> e.getCost()).sum();
 
-        //System.out.println(Arrays.toString(solution));
+        System.out.println(Arrays.toString(solution));
         System.out.println(solutionCost);
     }
     

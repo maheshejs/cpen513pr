@@ -1,6 +1,6 @@
-# Partitioning
+# Top-down Partitioning-based Placement
 
-This project implements a partition-based placement algorithm.
+This project implements a top-down partitioning-based placement algorithm.
 
 ## Getting Started
 
@@ -16,7 +16,7 @@ These instructions will get you a copy of the project up and running on your loc
 ```shell
 git clone https://github.com/maheshejs/cpen513pr.git
 cd cpen513pr
-./gradlew run
+./gradlew run --args="<benchmarkFile> <useRowSpacing> <useFM> <recursionDepth>"
 ```
 
 ### Testing
@@ -41,10 +41,6 @@ The source code files for the project are located at :
           └── benchmarks
               └── ass2
 ```
-
-## Graphics
-
-The project includes benchmark graphics in the `graphics/` folder.
 
 ## Authors
 
